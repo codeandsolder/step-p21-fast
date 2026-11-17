@@ -34,6 +34,7 @@ impl<'a, X, T> ExchangeParser<'a, X> for T where
 {
 }
 
+#[must_use]
 pub fn char_<'a>(c: char) -> impl ExchangeParser<'a, char> {
     move |input| {
         let (input, c) = nom::character::complete::char(c).parse(input)?;
@@ -41,6 +42,7 @@ pub fn char_<'a>(c: char) -> impl ExchangeParser<'a, char> {
     }
 }
 
+#[must_use]
 pub fn tag_<'a>(name: &'static str) -> impl ExchangeParser<'a, &'a str> {
     move |input| {
         let (input, c) = nom::bytes::complete::tag(name).parse(input)?;
@@ -100,16 +102,14 @@ pub fn many0_<'a, O>(
     f: impl ExchangeParser<'a, O>,
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
-        let (input, first) = opt(f.clone()).parse(input)?;
-        if first.is_none() {
-            return Ok((input, Vec::new()));
+        let (input, first) = match opt(f.clone()).parse(input)? {
+            (input, Some(first)) => (input, first),
+            (input, None) => return Ok((input, Vec::new())),
         };
         let (input, tail) =
             many0(tuple((ignorable, f.clone())).map(|(_sep, v)| v))
                 .parse(input)?;
-        let first = vec![first.unwrap()];
-        let list = first.into_iter().chain(tail).collect();
-        Ok((input, list))
+        Ok((input, std::iter::once(first).chain(tail).collect()))
     }
 }
 
@@ -287,7 +287,7 @@ impl_tuple!(
 /// nom 8 implements `Parser` for tuples directly, so wrapping is no longer
 /// needed -- but keeping the call sites spelled `tuple((a, b, c))` states the
 /// intent, and matches how the WSN productions read in the standard.
-pub fn tuple<T>(parsers: T) -> T {
+pub const fn tuple<T>(parsers: T) -> T {
     parsers
 }
 

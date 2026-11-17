@@ -42,8 +42,8 @@ pub mod ser;
 use crate::parser;
 use std::str::FromStr;
 
-/// AST portion
-pub trait AST: FromStr<Err = crate::error::Error> {
+/// Abstract syntax tree node parser
+pub trait Ast: FromStr<Err = crate::error::Error> {
     ///
     /// # Errors
     /// Returns a parse error when the input does not match the expected STEP
@@ -60,7 +60,7 @@ macro_rules! derive_ast_from_str {
                 use nom::Finish;
                 let input = input.trim();
                 let (residual, record) =
-                    AST::parse(input).finish().map_err(|err| {
+                    Ast::parse(input).finish().map_err(|err| {
                         $crate::error::TokenizeFailed::new(input, err)
                     })?;
                 if !residual.is_empty() {
@@ -72,7 +72,7 @@ macro_rules! derive_ast_from_str {
             }
         }
 
-        impl AST for $ast {
+        impl Ast for $ast {
             fn parse(input: &str) -> parser::combinator::ParseResult<'_, Self> {
                 $parse(input)
             }
@@ -84,7 +84,7 @@ macro_rules! derive_ast_from_str {
 ///
 /// Corresponding to [`parser::token::rhs_occurrence_name`] and
 /// [`parser::token::lhs_occurrence_name`]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Name {
     /// Like `#11`, corresponds to [`parser::token::entity_instance_name`]
     Entity(u64),
@@ -365,12 +365,19 @@ impl IntoIterator for SubSuperRecord {
     }
 }
 
+impl SubSuperRecord {
+    /// Iterate over the component records of this complex entity.
+    pub fn iter(&self) -> std::slice::Iter<'_, Record> {
+        self.0.iter()
+    }
+}
+
 impl<'a> IntoIterator for &'a SubSuperRecord {
     type IntoIter = std::slice::Iter<'a, Record>;
     type Item = &'a Record;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
+        self.iter()
     }
 }
 
@@ -737,14 +744,17 @@ pub enum Parameter {
 }
 
 impl Parameter {
-    pub fn integer(i: i64) -> Self {
+    #[must_use]
+    pub const fn integer(i: i64) -> Self {
         Self::Integer(i)
     }
 
-    pub fn real(x: f64) -> Self {
+    #[must_use]
+    pub const fn real(x: f64) -> Self {
         Self::Real(x)
     }
 
+    #[must_use]
     pub fn string(s: &str) -> Self {
         Self::String(s.to_string())
     }
@@ -791,12 +801,12 @@ derive_ast_from_str!(EntityInstance, parser::exchange::entity_instance);
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReferenceEntry {
     pub name: Name,
-    pub resource: URI,
+    pub resource: Uri,
 }
 derive_ast_from_str!(ReferenceEntry, parser::exchange::reference);
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct URI(pub String);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Uri(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Anchor {

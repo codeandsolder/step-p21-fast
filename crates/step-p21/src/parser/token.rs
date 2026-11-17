@@ -1,7 +1,7 @@
 //! Parser for tokens defined in the table 2 of ISO-10303-21
 
 use crate::{
-    ast::{Name, URI},
+    ast::{Name, Uri},
     parser::{
         basic::{digit, lower, upper},
         combinator::{ParseResult, tuple},
@@ -14,7 +14,7 @@ use nom::{
     character::complete::{
         char, digit0, digit1, multispace0, none_of, satisfy,
     },
-    combinator::{map, opt},
+    combinator::{map, map_res, opt},
     multi::{many0, many1},
 };
 
@@ -33,30 +33,34 @@ pub fn sign(input: &str) -> ParseResult<'_, char> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn integer(input: &str) -> ParseResult<'_, i64> {
-    tuple((opt(sign), multispace0, digit1))
-        .map(|(sign, _space, numbers)| {
-            let num: i64 =
-                numbers.parse().expect("Failed to parse into integer");
-            match sign {
-                Some('-') => -num,
-                _ => num,
-            }
-        })
-        .parse(input)
+    map_res(
+        tuple((opt(sign), multispace0, digit1)),
+        |(sign, _, digits)| parse_signed_integer(sign, digits),
+    )
+    .parse(input)
+}
+
+/// Parse the full i64 range without allocating a signed intermediate string.
+fn parse_signed_integer(sign: Option<char>, digits: &str) -> Result<i64, ()> {
+    let magnitude = digits.parse::<u64>().map_err(|_| ())?;
+    if sign == Some('-') {
+        if magnitude == i64::MAX as u64 + 1 {
+            Ok(i64::MIN)
+        } else {
+            i64::try_from(magnitude).map(|value| -value).map_err(|_| ())
+        }
+    } else {
+        i64::try_from(magnitude).map_err(|_| ())
+    }
 }
 
 /// `E` \[ [sign] \] [digit] { [digit] } .
 fn exponent(input: &str) -> ParseResult<'_, i64> {
-    tuple((char('E'), multispace0, opt(sign), multispace0, digit1))
-        .map(|(_e, _sp1, sign, _sp2, digit)| {
-            let num: i64 =
-                digit.parse().expect("Failed to parse integer in exponent");
-            match sign {
-                Some('-') => -num,
-                _ => num,
-            }
-        })
-        .parse(input)
+    map_res(
+        tuple((char('E'), multispace0, opt(sign), multispace0, digit1)),
+        |(_e, _sp1, sign, _sp2, digits)| parse_signed_integer(sign, digits),
+    )
+    .parse(input)
 }
 
 /// real = \[ [sign] \] [digit] { [digit] } `.` { [digit] } \[ `E` \[ [sign] \]
@@ -84,9 +88,9 @@ pub fn real(input: &str) -> ParseResult<'_, f64> {
     if let Ok(number) = token.parse::<f64>() {
         return Ok((rest, number));
     }
-    let number = format!("{}.{}e{}", integral, fractional, exp.unwrap_or(0))
+    let number = format!("{integral}.{fractional}e{}", exp.unwrap_or(0))
         .parse::<f64>()
-        .expect("Failed to parse Float");
+        .map_err(|_| numeric_error(rest, "invalid-real"))?;
     Ok((rest, if sign == Some('-') { -number } else { number }))
 }
 
@@ -115,9 +119,9 @@ pub fn string(input: &str) -> ParseResult<'_, String> {
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
-pub fn resource(input: &str) -> ParseResult<'_, URI> {
+pub fn resource(input: &str) -> ParseResult<'_, Uri> {
     tuple((char('<'), many0(none_of(">")), char('>')))
-        .map(|(_start, s, _end)| URI(s.iter().collect()))
+        .map(|(_start, s, _end)| Uri(s.iter().collect()))
         .parse(input)
 }
 
@@ -136,15 +140,22 @@ pub fn enumeration(input: &str) -> ParseResult<'_, String> {
 //
 // FIXME Though it works, should we use `VerboseErrorKind::Context` for this
 // usage?
-fn u64_overflow(
-    input: &str,
-) -> nom::Err<nom_language::error::VerboseError<&str>> {
+fn numeric_error<'a>(
+    input: &'a str,
+    reason: &'static str,
+) -> nom::Err<nom_language::error::VerboseError<&'a str>> {
     nom::Err::Failure(nom_language::error::VerboseError {
         errors: vec![(
             input,
-            nom_language::error::VerboseErrorKind::Context("u64-overflow"),
+            nom_language::error::VerboseErrorKind::Context(reason),
         )],
     })
+}
+
+fn u64_overflow(
+    input: &str,
+) -> nom::Err<nom_language::error::VerboseError<&str>> {
+    numeric_error(input, "u64-overflow")
 }
 
 /// `entity_instance_name` = `#` ( [digit] ) { [digit] } .
@@ -168,11 +179,7 @@ pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
     let (input, name) = tuple((char('#'), digit1))
         .map(|(_sharp, name): (_, &str)| name.parse())
         .parse(input)?;
-    if let Ok(name) = name {
-        Ok((input, name))
-    } else {
-        Err(u64_overflow(input))
-    }
+    name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
 }
 
 /// `value_instance_name` = `@` ( [digit] ) { [digit] } .
@@ -191,11 +198,7 @@ pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
     let (input, name) = tuple((char('@'), digit1))
         .map(|(_sharp, name): (_, &str)| name.parse())
         .parse(input)?;
-    if let Ok(name) = name {
-        Ok((input, name))
-    } else {
-        Err(u64_overflow(input))
-    }
+    name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
 }
 
 /// `constant_entity_name` = `#` ( [upper] ) { [upper] | [digit] } .
@@ -360,6 +363,31 @@ mod tests {
         assert_eq!(s, -1.23e-4);
 
         assert!(super::real("123").finish().is_err());
+    }
+
+    #[test]
+    fn integer_boundaries_and_overflow_are_errors_not_panics() {
+        for (input, expected) in [
+            ("0", 0),
+            ("+42", 42),
+            ("-42", -42),
+            ("- 42", -42),
+            ("9223372036854775807", i64::MAX),
+            ("-9223372036854775808", i64::MIN),
+        ] {
+            let (rest, parsed) = super::integer(input).expect("valid integer");
+            assert_eq!(rest, "", "input: {input}");
+            assert_eq!(parsed, expected, "input: {input}");
+        }
+        for input in [
+            "9223372036854775808",
+            "-9223372036854775809",
+            "18446744073709551616",
+            "-18446744073709551616",
+        ] {
+            assert!(super::integer(input).is_err(), "input: {input}");
+        }
+        assert!(super::exponent("E9223372036854775808").is_err());
     }
 
     #[test]

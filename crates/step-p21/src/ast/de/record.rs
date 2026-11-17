@@ -47,7 +47,7 @@ pub struct RecordDeserializer<'record> {
     value: &'record Parameter,
 }
 
-impl<'de, 'record> de::Deserializer<'de> for RecordDeserializer<'record> {
+impl<'de> de::Deserializer<'de> for RecordDeserializer<'_> {
     type Error = crate::error::Error;
 
     forward_to_deserialize_any! {
@@ -65,7 +65,8 @@ impl<'de, 'record> de::Deserializer<'de> for RecordDeserializer<'record> {
 }
 
 impl<'record> RecordDeserializer<'record> {
-    pub fn new(key: &'record str, value: &'record Parameter) -> Self {
+    #[must_use]
+    pub const fn new(key: &'record str, value: &'record Parameter) -> Self {
         RecordDeserializer {
             key: Some(key),
             value,
@@ -74,7 +75,7 @@ impl<'record> RecordDeserializer<'record> {
 }
 
 // Entry point of `visit_map`
-impl<'de, 'record> de::MapAccess<'de> for RecordDeserializer<'record> {
+impl<'de> de::MapAccess<'de> for RecordDeserializer<'_> {
     type Error = crate::error::Error;
 
     fn next_key_seed<K>(
@@ -112,7 +113,8 @@ pub struct RecordStructDeserializer<'a> {
 }
 
 impl<'a> RecordStructDeserializer<'a> {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         fields: &'a [&'static str],
         parameters: &'a [Parameter],
     ) -> Self {
@@ -124,7 +126,7 @@ impl<'a> RecordStructDeserializer<'a> {
     }
 }
 
-impl<'de, 'a> de::Deserializer<'de> for RecordStructDeserializer<'a> {
+impl<'de> de::Deserializer<'de> for RecordStructDeserializer<'_> {
     type Error = crate::error::Error;
 
     forward_to_deserialize_any! {
@@ -141,7 +143,7 @@ impl<'de, 'a> de::Deserializer<'de> for RecordStructDeserializer<'a> {
     }
 }
 
-impl<'de, 'a> de::MapAccess<'de> for RecordStructDeserializer<'a> {
+impl<'de> de::MapAccess<'de> for RecordStructDeserializer<'_> {
     type Error = crate::error::Error;
 
     fn next_key_seed<K>(

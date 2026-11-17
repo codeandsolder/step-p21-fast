@@ -14,8 +14,23 @@ pub enum Error {
     #[error("Error while deserialize STEP struct: {0}")]
     DeserializeFailed(String),
 
+    #[error("STEP header requires three records, found {found}")]
+    MissingHeaderRecords { found: usize },
+
+    #[error("Unsupported STEP serialization: {0}")]
+    UnsupportedSerialization(&'static str),
+
+    #[error("STEP integer {0} exceeds the supported i64 range")]
+    IntegerOutOfRange(u64),
+
+    #[error("STEP serializer finished with an unclosed nested record")]
+    UnbalancedRecordStack,
+
     #[error("Lookup failed for #{0}")]
     UnknownEntity(u64),
+
+    #[error("Reference {0:?} is not an entity reference")]
+    UnsupportedReference(crate::ast::Name),
 
     #[error("Entity ID #{0} is duplicated")]
     DuplicatedEntity(u64),

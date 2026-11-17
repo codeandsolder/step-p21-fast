@@ -80,19 +80,13 @@ impl std::fmt::Display for Logical {
 
 impl From<bool> for Logical {
     fn from(b: bool) -> Self {
-        match b {
-            true => Self::True,
-            false => Self::False,
-        }
+        if b { Self::True } else { Self::False }
     }
 }
 
 impl From<Option<bool>> for Logical {
     fn from(option: Option<bool>) -> Self {
-        match option {
-            Some(b) => b.into(),
-            None => Self::Unknown,
-        }
+        option.map_or(Self::Unknown, Into::into)
     }
 }
 
@@ -110,10 +104,8 @@ impl BitAnd for Logical {
 
     fn bitand(self, other: Self) -> Self {
         match (self, other) {
-            (Self::False, _) => Self::False,
-            (_, Self::False) => Self::False,
-            (Self::Unknown, _) => Self::Unknown,
-            (_, Self::Unknown) => Self::Unknown,
+            (Self::False, _) | (_, Self::False) => Self::False,
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
             (Self::True, Self::True) => Self::True,
         }
     }
@@ -124,10 +116,8 @@ impl BitOr for Logical {
 
     fn bitor(self, other: Self) -> Self {
         match (self, other) {
-            (Self::True, _) => Self::True,
-            (_, Self::True) => Self::True,
-            (Self::Unknown, _) => Self::Unknown,
-            (_, Self::Unknown) => Self::Unknown,
+            (Self::True, _) | (_, Self::True) => Self::True,
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
             (Self::False, Self::False) => Self::False,
         }
     }
@@ -138,9 +128,8 @@ impl BitXor for Logical {
 
     fn bitxor(self, other: Self) -> Self {
         match (self, other) {
-            (Self::Unknown, _) => Self::Unknown,
-            (_, Self::Unknown) => Self::Unknown,
-            (_, _) => (self != other).into(),
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
+            _ => (self != other).into(),
         }
     }
 }
@@ -170,7 +159,7 @@ struct SubVisitor;
 
 const VARIANTS: &[&str] = &["T", "True", "F", "False", "U", "Unknown"];
 
-impl<'de> serde::de::Visitor<'de> for SubVisitor {
+impl serde::de::Visitor<'_> for SubVisitor {
     type Value = SubLogical;
 
     fn expecting(
@@ -214,12 +203,9 @@ impl<'de> serde::de::Visitor<'de> for SubVisitor {
 impl From<SubLogical> for Logical {
     fn from(value: SubLogical) -> Self {
         match value {
-            SubLogical::T => Self::True,
-            SubLogical::True => Self::True,
-            SubLogical::F => Self::False,
-            SubLogical::False => Self::False,
-            SubLogical::U => Self::Unknown,
-            SubLogical::Unknown => Self::Unknown,
+            SubLogical::T | SubLogical::True => Self::True,
+            SubLogical::F | SubLogical::False => Self::False,
+            SubLogical::U | SubLogical::Unknown => Self::Unknown,
         }
     }
 }

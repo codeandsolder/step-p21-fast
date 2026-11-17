@@ -43,10 +43,8 @@ impl<'de> de::Deserializer<'de> for &Parameter {
     {
         if let Parameter::Enumeration(variant) = self {
             match variant.as_str() {
-                "T" => visitor.visit_bool(true),
-                "TRUE" => visitor.visit_bool(true),
-                "F" => visitor.visit_bool(false),
-                "FALSE" => visitor.visit_bool(false),
+                "T" | "TRUE" => visitor.visit_bool(true),
+                "F" | "FALSE" => visitor.visit_bool(false),
                 _ => visitor
                     .visit_enum(variant.to_pascal_case().into_deserializer()),
             }
@@ -74,7 +72,8 @@ pub struct SeqDeserializer<'p> {
 }
 
 impl<'p> SeqDeserializer<'p> {
-    pub fn new(parameters: &'p [Parameter]) -> Self {
+    #[must_use]
+    pub const fn new(parameters: &'p [Parameter]) -> Self {
         SeqDeserializer {
             cursor: 0,
             parameters,
@@ -82,7 +81,7 @@ impl<'p> SeqDeserializer<'p> {
     }
 }
 
-impl<'de, 'p> de::Deserializer<'de> for SeqDeserializer<'p> {
+impl<'de> de::Deserializer<'de> for SeqDeserializer<'_> {
     type Error = crate::error::Error;
 
     forward_to_deserialize_any! {
@@ -99,7 +98,7 @@ impl<'de, 'p> de::Deserializer<'de> for SeqDeserializer<'p> {
     }
 }
 
-impl<'de, 'p> de::SeqAccess<'de> for SeqDeserializer<'p> {
+impl<'de> de::SeqAccess<'de> for SeqDeserializer<'_> {
     type Error = crate::error::Error;
 
     fn size_hint(&self) -> Option<usize> {

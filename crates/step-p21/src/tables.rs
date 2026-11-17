@@ -195,22 +195,22 @@ pub trait TableInit: Default {
 /// to its owned representation.
 pub fn get_owned<T, Table>(
     table: &Table,
-    map: &HashMap<u64, T>,
+    map: &HashMap<u64, T, impl std::hash::BuildHasher>,
     entity_id: u64,
 ) -> Result<T::Owned>
 where
     T: Holder<Table = Table>,
     Table: EntityTable<T>,
 {
-    match map.get(&entity_id) {
-        Some(holder) => holder.clone().into_owned(table),
-        None => Err(Error::UnknownEntity(entity_id)),
-    }
+    map.get(&entity_id).map_or_else(
+        || Err(Error::UnknownEntity(entity_id)),
+        |holder| holder.clone().into_owned(table),
+    )
 }
 
 pub fn owned_iter<'table, T, Table>(
     table: &'table Table,
-    map: &'table HashMap<u64, T>,
+    map: &'table HashMap<u64, T, impl std::hash::BuildHasher>,
 ) -> Box<dyn Iterator<Item = Result<T::Owned>> + 'table>
 where
     T: Holder<Table = Table>,
@@ -229,7 +229,7 @@ where
 /// Returns an error if a record cannot be decoded or its entity identifier is
 /// duplicated.
 pub fn insert_record<'de, T: de::Deserialize<'de>>(
-    table: &mut HashMap<u64, T>,
+    table: &mut HashMap<u64, T, impl std::hash::BuildHasher>,
     id: u64,
     record: &Record,
 ) -> crate::error::Result<()> {
@@ -267,7 +267,7 @@ where
         match self {
             Self::Ref(id) => match id {
                 Name::Entity(id) => table.get_owned(id),
-                _ => unimplemented!("ENTITY is only supported now"),
+                reference => Err(Error::UnsupportedReference(reference)),
             },
             Self::Owned(a) => a.into_owned(table),
         }

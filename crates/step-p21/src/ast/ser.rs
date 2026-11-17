@@ -13,7 +13,9 @@ use std::convert::TryFrom;
 pub fn to_record(obj: &impl ser::Serialize) -> Result<Record> {
     let mut ser = RecordSerializer::default();
     obj.serialize(&mut ser)?;
-    assert!(ser.stack.is_empty()); // should panic because this must be bug, not a valid input
+    if !ser.stack.is_empty() {
+        return Err(Error::UnbalancedRecordStack);
+    }
     Ok(Record {
         name: ser.name,
         parameter: ser.parameters.iter().collect(),
@@ -81,8 +83,7 @@ impl ser::Serializer for &mut RecordSerializer {
 
     fn serialize_u64(self, v: u64) -> Result<()> {
         self.serialize_i64(
-            i64::try_from(v)
-                .expect("integer larger than i64::MAX is not supported"),
+            i64::try_from(v).map_err(|_| Error::IntegerOutOfRange(v))?,
         )
     }
 
@@ -105,7 +106,7 @@ impl ser::Serializer for &mut RecordSerializer {
     }
 
     fn serialize_bytes(self, _v: &[u8]) -> Result<()> {
-        unimplemented!("Bytes is not supported yet")
+        Err(Error::UnsupportedSerialization("byte strings"))
     }
 
     fn serialize_none(self) -> Result<()> {
@@ -158,7 +159,7 @@ impl ser::Serializer for &mut RecordSerializer {
     where
         T: ?Sized + ser::Serialize,
     {
-        unimplemented!("Newtype variant is not suuported yet.")
+        Err(Error::UnsupportedSerialization("newtype enum variants"))
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
@@ -184,11 +185,11 @@ impl ser::Serializer for &mut RecordSerializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        unimplemented!("Tuple variant is not suuported yet.")
+        Err(Error::UnsupportedSerialization("tuple enum variants"))
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        Ok(self)
+        Err(Error::UnsupportedSerialization("maps"))
     }
 
     fn serialize_struct(
@@ -224,7 +225,7 @@ impl ser::Serializer for &mut RecordSerializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        unimplemented!("Struct variant is not suuported yet.")
+        Err(Error::UnsupportedSerialization("struct enum variants"))
     }
 }
 
@@ -300,18 +301,18 @@ impl ser::SerializeMap for &mut RecordSerializer {
     where
         T: ?Sized + ser::Serialize,
     {
-        unimplemented!("Serialize Map to Record is not supported yet.")
+        Err(Error::UnsupportedSerialization("maps"))
     }
 
     fn serialize_value<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + ser::Serialize,
     {
-        unimplemented!("Serialize Map to Record is not supported yet.")
+        Err(Error::UnsupportedSerialization("maps"))
     }
 
     fn end(self) -> Result<()> {
-        unimplemented!("Serialize Map to Record is not supported yet.")
+        Err(Error::UnsupportedSerialization("maps"))
     }
 }
 
@@ -361,5 +362,45 @@ impl ser::SerializeStructVariant for &mut RecordSerializer {
 
     fn end(self) -> Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Error, to_record};
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct LargeInteger {
+        value: u64,
+    }
+
+    #[test]
+    fn out_of_range_integer_returns_an_error() {
+        let error = to_record(&LargeInteger { value: u64::MAX }).expect_err(
+            "u64::MAX is not representable in STEP's i64 serializer",
+        );
+        assert!(matches!(error, Error::IntegerOutOfRange(u64::MAX)));
+    }
+
+    struct Bytes;
+
+    impl Serialize for Bytes {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_bytes(&[1, 2, 3])
+        }
+    }
+
+    #[test]
+    fn unsupported_serialization_is_an_error() {
+        let error =
+            to_record(&Bytes).expect_err("byte strings are unsupported");
+        assert!(matches!(
+            error,
+            Error::UnsupportedSerialization("byte strings")
+        ));
     }
 }
