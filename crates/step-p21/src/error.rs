@@ -89,6 +89,7 @@ impl fmt::Display for TokenizeFailed {
 impl std::error::Error for TokenizeFailed {}
 
 impl TokenizeFailed {
+    #[must_use]
     pub fn new(
         input: &str,
         err: nom_language::error::VerboseError<&str>,

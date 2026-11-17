@@ -798,7 +798,7 @@ pub enum EntityInstance {
 }
 derive_ast_from_str!(EntityInstance, parser::exchange::entity_instance);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceEntry {
     pub name: Name,
     pub resource: Uri,

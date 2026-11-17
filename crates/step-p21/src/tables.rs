@@ -244,7 +244,7 @@ pub fn insert_record<'de, T: de::Deserialize<'de>>(
 }
 
 /// Owned value or reference through entity/value id
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlaceHolder<T> {
     Ref(Name),
     Owned(T),
