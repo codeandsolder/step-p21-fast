@@ -50,7 +50,7 @@ pub fn anchor(input: &str) -> ParseResult<'_, Anchor> {
 }
 
 /// `anchor_item` = `$` | [integer] | [real] | [string] | [enumeration] | binary
-/// | [`rhs_occurrence_name`] | [resource] | [`anchor_item_list`] .
+/// | [`rhs_occurrence_name`] | [`crate::parser::token::resource`] | [`anchor_item_list`] .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP

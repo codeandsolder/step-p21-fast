@@ -94,9 +94,11 @@ pub fn real(input: &str) -> ParseResult<'_, f64> {
     Ok((rest, if sign == Some('-') { -number } else { number }))
 }
 
-/// string = `'` { [special] | [digit] | [space] | [lower] | [upper] |
-/// `high_codepoint` | [apostrophe] [apostrophe] | [`reverse_solidus`]
-/// [`reverse_solidus`] | `control_directive` } `'` .
+/// string = `'` { [`crate::parser::basic::special`] | [digit] |
+/// [`crate::parser::basic::space`] | [lower] | [upper] | `high_codepoint` |
+/// [`crate::parser::basic::apostrophe`] [`crate::parser::basic::apostrophe`] |
+/// [`crate::parser::basic::reverse_solidus`]
+/// [`crate::parser::basic::reverse_solidus`] | `control_directive` } `'` .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
