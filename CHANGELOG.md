@@ -177,4 +177,4 @@ In addition to original Keep-a-Changelog, we use following rules:
 
 ## 0.1.0 - 2021-09-28
 
-See https://github.com/ricosjp/ruststep/releases/tag/step-p21-0.1.0
+See https://github.com/ricosjp/ruststep/releases

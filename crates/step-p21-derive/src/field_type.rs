@@ -148,7 +148,9 @@ impl TryFrom<syn::Type> for FieldType {
                 }
                 Err(UnsupportedTypeError {})
             }
-            _ => Err(UnsupportedTypeError {}),
+            syn::PathArguments::Parenthesized(_) => {
+                Err(UnsupportedTypeError {})
+            }
         }
     }
 }
