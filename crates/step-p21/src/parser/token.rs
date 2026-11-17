@@ -51,7 +51,7 @@ fn exponent(input: &str) -> ParseResult<'_, i64> {
 /// real = \[ [sign] \] [digit] { [digit] } `.` { [digit] } \[ `E` \[ [sign] \]
 /// [digit] { [digit] } \] .
 pub fn real(input: &str) -> ParseResult<'_, f64> {
-    tuple((
+    let (rest, (sign, _space, integral, _point, fractional, exp)) = tuple((
         opt(sign),
         multispace0,
         digit1,
@@ -59,17 +59,20 @@ pub fn real(input: &str) -> ParseResult<'_, f64> {
         digit0,
         opt(exponent),
     ))
-    .map(|(sign, _space, integral, _point, fractional, exp)| {
-        let num: f64 =
-            format!("{}.{}e{}", integral, fractional, exp.unwrap_or(0))
-                .parse()
-                .expect("Failed to parse Float");
-        match sign {
-            Some('-') => -num,
-            _ => num,
-        }
-    })
-    .parse(input)
+    .parse(input)?;
+    // Part 21's ordinary real-number spelling is already accepted directly
+    // by f64::from_str. Borrow it from the input instead of allocating and
+    // reparsing a formatted decimal string for every coordinate and vector.
+    // Whitespace between sign/exponent components is also legal per this
+    // parser's grammar; preserve the original normalization for those cases.
+    let token = &input[..input.len() - rest.len()];
+    if let Ok(number) = token.parse::<f64>() {
+        return Ok((rest, number));
+    }
+    let number = format!("{}.{}e{}", integral, fractional, exp.unwrap_or(0))
+        .parse::<f64>()
+        .expect("Failed to parse Float");
+    Ok((rest, if sign == Some('-') { -number } else { number }))
 }
 
 /// string = `'` { [special] | [digit] | [space] | [lower] | [upper] |
@@ -206,17 +209,25 @@ pub fn anchor_name(input: &str) -> ParseResult<'_, String> {
 
 /// keyword = [user_defined_keyword] | [standard_keyword] .
 pub fn keyword(input: &str) -> ParseResult<'_, String> {
-    alt((user_defined_keyword, standard_keyword)).parse(input)
+    // An extension keyword is syntactically unambiguous at the first byte.
+    // Avoid constructing a recoverable error for every ordinary keyword.
+    if input.starts_with('!') {
+        user_defined_keyword(input)
+    } else {
+        standard_keyword(input)
+    }
 }
 
 /// standard_keyword = [upper] { [upper] | [digit] } .
 pub fn standard_keyword(input: &str) -> ParseResult<'_, String> {
-    tuple((upper, many0(alt((upper, digit)))))
-        .map(|(first, tail)| {
-            let head = &[first];
-            head.iter().chain(tail.iter()).collect()
-        })
-        .parse(input)
+    let (rest, _) = upper(input)?;
+    let (rest, _) = nom::bytes::complete::take_while(
+        |c: char| matches!(c, 'A'..='Z' | '_' | '0'..='9'),
+    )
+    .parse(rest)?;
+    // Preserve the exact identifier (including underscores) with one string
+    // allocation, instead of allocating Vec<char> and then another String.
+    Ok((rest, input[..input.len() - rest.len()].to_owned()))
 }
 
 /// user_defined_keyword = `!` [upper] { [upper] | [digit] } .
@@ -273,6 +284,45 @@ mod tests {
         assert_eq!(s, -1.23e-4);
 
         assert!(super::real("123").finish().is_err());
+    }
+
+    #[test]
+    fn keyword_tokenization_preserves_extension_and_boundary_behavior() {
+        for (input, rest, expected) in [
+            (
+                "B_SPLINE_SURFACE_WITH_KNOTS012(foo)",
+                "(foo)",
+                "B_SPLINE_SURFACE_WITH_KNOTS012",
+            ),
+            ("A0_", "", "A0_"),
+            ("!CUSTOM_1(", "(", "CUSTOM_1"),
+            ("_1_2.", ".", "_1_2"),
+        ] {
+            let (remainder, parsed) = super::keyword(input).unwrap();
+            assert_eq!(remainder, rest, "input: {input}");
+            assert_eq!(parsed, expected, "input: {input}");
+        }
+        assert!(super::standard_keyword("0KEY").is_err());
+        assert!(super::standard_keyword("lower").is_err());
+        assert!(super::keyword("!0NAME").is_err());
+    }
+
+    #[test]
+    fn real_fast_path_preserves_bits_and_whitespace_fallback() {
+        for (token, expected) in [
+            ("1.23", 1.23_f64),
+            ("1.23E4", 1.23e4),
+            ("-1.23E-4", -1.23e-4),
+            ("+12.", 12.0),
+            ("-0.0", -0.0),
+            ("0.000000000000000000000000000005", 5e-30),
+            ("1.25E  -  03", 1.25e-3),
+            ("-  2.5", -2.5),
+        ] {
+            let (remainder, parsed) = super::real(token).unwrap();
+            assert_eq!(remainder, "", "token: {token}");
+            assert_eq!(parsed.to_bits(), expected.to_bits(), "token: {token}");
+        }
     }
 
     #[test]

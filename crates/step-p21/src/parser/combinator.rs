@@ -119,9 +119,26 @@ pub fn many1_<'a, O>(
     }
 }
 
-pub fn ignorable(input: &str) -> ParseResult<'_, ()> {
-    let comment = many1(tuple((multispace0, comment, multispace0))).map(|_| ());
-    alt((comment, value((), multispace0))).parse(input)
+pub fn ignorable(mut input: &str) -> ParseResult<'_, ()> {
+    // Speculatively parsing a comment at every token boundary allocates a
+    // VerboseError even when the input contains only ordinary whitespace.
+    // Comments are unambiguous at the byte level, so only invoke their parser
+    // after the slash-star opener is present.
+    loop {
+        let (after_spaces, _) = multispace0(input)?;
+        input = after_spaces;
+        if !input.starts_with("/*") {
+            return Ok((input, ()));
+        }
+        match comment(input) {
+            Ok((after_comment, _)) => input = after_comment,
+            // Preserve the old backtracking behavior for an incomplete
+            // comment opener: ignore the preceding whitespace but let the
+            // following token parser decide how to report the invalid input.
+            Err(nom::Err::Error(_)) => return Ok((input, ())),
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 pub fn separated<'a, O>(
@@ -395,6 +412,23 @@ mod tests {
 
         let (res, _) = super::ignorable(" /* comment */ ").finish().unwrap();
         assert_eq!(res, "");
+    }
+
+    #[test]
+    fn ignorable_comments_are_skipped_only_with_an_actual_opener() {
+        for (input, rest) in [
+            (" /*first*/  /*second*/\n  VALUE", "VALUE"),
+            ("/*🦀🌳*/TOKEN", "TOKEN"),
+            ("\t\n/* outer /* inner */END", "END"),
+            ("\n //not-a-comment", "//not-a-comment"),
+            ("\t/foo", "/foo"),
+            ("/*unterminated", "/*unterminated"),
+            ("  /*unterminated", "/*unterminated"),
+            ("/*valid*/  /*unterminated", "/*unterminated"),
+        ] {
+            let (remaining, ()) = super::ignorable(input).unwrap();
+            assert_eq!(remaining, rest, "input: {input:?}");
+        }
     }
 
     fn comma_digit(input: &str) -> ParseResult<'_, Vec<char>> {
