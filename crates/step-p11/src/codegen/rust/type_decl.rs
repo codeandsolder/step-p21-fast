@@ -127,7 +127,13 @@ impl ToTokens for Select {
                             .push(quote! { #[holder(use_place_holder)] });
                     }
                 }
-                _ => unimplemented!(),
+                unsupported => {
+                    let detail = format!(
+                        "SELECT alternative must be a declared type or entity: {unsupported:?}"
+                    );
+                    tokens.append_all(quote! { compile_error!(#detail); });
+                    return;
+                }
             }
         }
         tokens.append_all(quote! {

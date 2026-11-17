@@ -35,7 +35,7 @@ impl<'st> std::ops::Index<usize> for Namespace<'st> {
     }
 }
 
-impl<'st> std::ops::Index<&Scope> for Namespace<'st> {
+impl std::ops::Index<&Scope> for Namespace<'_> {
     type Output = [(ScopeType, String, usize)];
 
     fn index(&self, id: &Scope) -> &Self::Output {
@@ -58,18 +58,14 @@ impl<'st> Namespace<'st> {
                 let path = Path::new(&here, ScopeType::Type, name);
                 let index = ast.len();
                 ast.push((path, Named::Type(ty)));
-                current_names.push((ScopeType::Type, name.to_string(), index));
+                current_names.push((ScopeType::Type, name.clone(), index));
             }
             for entity in &schema.entities {
                 let name = &entity.name;
                 let path = Path::new(&here, ScopeType::Entity, name);
                 let index = ast.len();
                 ast.push((path, Named::Entity(entity)));
-                current_names.push((
-                    ScopeType::Entity,
-                    name.to_string(),
-                    index,
-                ));
+                current_names.push((ScopeType::Entity, name.clone(), index));
             }
             names.insert(here, current_names);
         }

@@ -199,6 +199,12 @@ pub enum SemanticError {
     #[error("Invalid path: {0}")]
     InvalidPath(Path),
 
+    #[error("Unsupported {context}: {detail}")]
+    UnsupportedConstruct {
+        context: &'static str,
+        detail: String,
+    },
+
     #[error("Same item ({0}) is declared multiple times")]
     DuplicatedDeclaration(Path),
 }

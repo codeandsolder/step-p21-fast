@@ -92,7 +92,7 @@ impl TypeRef {
             Self::Set { base, .. } | Self::List { base, .. } => {
                 base.is_simple()
             }
-            _ => false,
+            Self::Entity { .. } => false,
         }
     }
 
@@ -133,7 +133,6 @@ impl TypeRef {
                             | ast::Type::Enumeration { .. } => break true,
                             ast::Type::Named(name) => {
                                 p = ns.resolve(&p.scope, name)?.0;
-                                continue;
                             }
                             _ => break false,
                         },
@@ -152,7 +151,6 @@ impl TypeRef {
                         //
                         // should be simple because it will be expressed as
                         // single integer.
-                        ast::Type::Simple(_) => false,
                         ast::Type::Enumeration { .. } => true,
                         _ => false,
                     },
@@ -165,9 +163,10 @@ impl TypeRef {
                     is_enumerate,
                 })
             }
-            _ => unimplemented!(
-                "Path to TypeRef conversion only supports Entity and Types yet."
-            ),
+            other => Err(SemanticError::UnsupportedConstruct {
+                context: "scope kind in type reference",
+                detail: format!("{other:?}"),
+            }),
         }
     }
 }
@@ -217,7 +216,12 @@ impl Legalize for TypeRef {
                     unique: *unique,
                 }
             }
-            _ => todo!(),
+            unsupported => {
+                return Err(SemanticError::UnsupportedConstruct {
+                    context: "attribute type",
+                    detail: format!("{unsupported:?}"),
+                });
+            }
         })
     }
 }

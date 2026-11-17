@@ -20,7 +20,7 @@ fn begin(input: &str) -> RawParseResult<'_, ()> {
 fn end(input: &str) -> RawParseResult<'_, String> {
     tuple((many1(char('*')), char(')')))
         .map(|(stars, lparen)| {
-            format!("{}{}", stars.iter().collect::<String>(), lparen)
+            format!("{}{lparen}", stars.iter().collect::<String>())
                 .trim_end_matches("*)")
                 .to_string()
         })
@@ -29,11 +29,11 @@ fn end(input: &str) -> RawParseResult<'_, String> {
 
 fn middle_star(input: &str) -> RawParseResult<'_, String> {
     tuple((many1(char('*')), none_of("*)")))
-        .map(|(stars, c)| format!("{}{}", stars.iter().collect::<String>(), c))
+        .map(|(stars, c)| format!("{}{c}", stars.iter().collect::<String>()))
         .parse(input)
 }
 
-/// Quoted string like `\`*)\``
+/// Recognizes backtick-quoted text containing a literal closing comment marker.
 fn quoted(input: &str) -> RawParseResult<'_, String> {
     tuple((char('`'), many0(none_of("`")), char('`')))
         .map(|(_quote_start, chars, _quote_end)| {
@@ -82,9 +82,7 @@ pub fn embedded_remark(input: &str) -> RawParseResult<'_, Remark> {
     ))
     .map(|(_begin, _sp1, tag, _sp2, chars, end)| Remark {
         tag,
-        remark: format!("{}{}", chars.iter().join(""), end)
-            .trim()
-            .to_string(),
+        remark: format!("{}{end}", chars.iter().join("")).trim().to_string(),
     })
     .parse(input)
 }

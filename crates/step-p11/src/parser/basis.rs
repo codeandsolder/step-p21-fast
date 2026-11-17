@@ -104,7 +104,7 @@ pub fn simple_id(input: &str) -> RawParseResult<'_, String> {
     if let Ok((input, id)) =
         tuple((letter, many0(alt((letter, digit, char('_'))))))
             .map(|(head, tail)| {
-                format!("{}{}", head, tail.into_iter().collect::<String>())
+                format!("{head}{}", tail.into_iter().collect::<String>())
             })
             .parse(input)
     {

@@ -110,14 +110,14 @@ pub fn supertype_expression(
         many0(tuple((tag("ANDOR"), supertype_factor))),
     ))
     .map(|(first, tails)| {
-        if !tails.is_empty() {
+        if tails.is_empty() {
+            first
+        } else {
             let mut factors = vec![first];
             for (_andor, factor) in tails {
-                factors.push(factor)
+                factors.push(factor);
             }
             SuperTypeExpression::AndOr { factors }
-        } else {
-            first
         }
     })
     .parse(input)
@@ -131,14 +131,14 @@ pub fn supertype_expression(
 pub fn supertype_factor(input: &str) -> ParseResult<'_, SuperTypeExpression> {
     tuple((supertype_term, many0(tuple((tag("AND"), supertype_term)))))
         .map(|(first, tails)| {
-            if !tails.is_empty() {
+            if tails.is_empty() {
+                first
+            } else {
                 let mut terms = vec![first];
                 for (_and, term) in tails {
-                    terms.push(term)
+                    terms.push(term);
                 }
                 SuperTypeExpression::And { terms }
-            } else {
-                first
             }
         })
         .parse(input)

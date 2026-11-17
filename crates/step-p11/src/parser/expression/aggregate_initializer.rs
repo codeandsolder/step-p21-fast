@@ -14,7 +14,7 @@ use crate::ast::{Element, Expression};
 pub fn aggregate_initializer(input: &str) -> ParseResult<'_, Expression> {
     tuple((
         char('['),
-        opt(comma_separated(element)).map(|opt| opt.unwrap_or_default()),
+        opt(comma_separated(element)).map(Option::unwrap_or_default),
         char(']'),
     ))
     .map(

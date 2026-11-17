@@ -102,7 +102,7 @@ impl Expression {
 
     /// `SELF` constant
     #[must_use]
-    pub fn self_() -> Self {
+    pub const fn self_() -> Self {
         Self::self_qualified(Vec::new())
     }
 

@@ -78,7 +78,6 @@ impl Entity {
 
     fn any_ident(&self) -> syn::Ident {
         // `Any` indentifier must be appears if the entity is supertype
-        assert!(!self.constraints.is_empty());
         format_ident!("{}Any", self.name.to_pascal_case())
     }
 
@@ -91,8 +90,6 @@ impl Entity {
     fn generate_any_enum(&self, tokens: &mut TokenStream) {
         let any = self.any_ident();
 
-        let mut fields =
-            vec![format_ident!("{}", self.name.as_str().into_safe())];
         let mut variants =
             vec![format_ident!("{}", self.name.to_pascal_case())];
         let mut constraints =
@@ -103,7 +100,6 @@ impl Entity {
                 TypeRef::Entity {
                     name, is_supertype, ..
                 } => {
-                    fields.push(format_ident!("{}", name.as_str().into_safe()));
                     variants.push(format_ident!("{}", name.to_pascal_case()));
                     if *is_supertype {
                         constraints.push(format_ident!(

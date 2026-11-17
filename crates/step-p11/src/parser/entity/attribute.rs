@@ -70,7 +70,9 @@ pub fn redeclared_attribute(input: &str) -> ParseResult<'_, AttributeDecl> {
             attribute,
             rename: opt.map(|(_renamed, name)| name),
         },
-        _ => unreachable!(),
+        AttributeDecl::Reference(_) => {
+            unreachable!("qualified_attribute always yields Qualified")
+        }
     })
     .parse(input)
 }

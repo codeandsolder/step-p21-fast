@@ -174,7 +174,7 @@ pub enum SuperTypeExpression {
     OneOf { exprs: Vec<Self> },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubTypeConstraint {
     pub name: String,
     pub entity: String,
@@ -183,12 +183,12 @@ pub struct SubTypeConstraint {
     pub expr: Option<SuperTypeExpression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UniqueClause {
     pub rules: Vec<UniqueRule>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UniqueRule {
     pub name: Option<String>,
     pub attributes: Vec<AttributeDecl>,

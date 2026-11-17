@@ -142,7 +142,7 @@ pub struct LocalVariable {
     pub expr: Option<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InterfaceSpec {
     Reference {
         name: String,

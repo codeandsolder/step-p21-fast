@@ -296,52 +296,24 @@ impl Instantiables {
     /// A AND B AND C -> [A & B & C]
     #[must_use]
     pub fn and(terms: Vec<Self>) -> Self {
-        assert!(terms.len() >= 2);
-        let mut constrait = None;
-        for c in terms {
-            constrait = Some(if let Some(constrait) = constrait {
-                constrait & c
-            } else {
-                c
-            });
-        }
-        constrait.unwrap()
+        terms
+            .into_iter()
+            .reduce(std::ops::BitAnd::bitand)
+            .unwrap_or_default()
     }
 
     /// A ANDOR B ANDOR C -> [A, B, C, A & B, B & C, A & C, A & B & C]
     #[must_use]
-    pub fn andor(factors: Vec<Self>) -> Self {
-        assert!(!factors.is_empty());
-        // A ANDOR B → [A, B, A & B]
-        //
-        // This means `ANDOR` of n-factors will produce $2^n-1$ terms like:
-        //
-        // | A | B | ANDOR |
-        // |---|---|-------|
-        // | + | - | A     |
-        // | - | + | B     |
-        // | + | + | A & B |
-        //
-        let n = factors.len() as u32;
-        let mut constrait = Self::default();
-        for mut i in 1..(2usize.pow(n)) {
-            // i=0b01 -> A
-            // i=0b10 -> B
-            // i=0b11 -> A & B, and so on.
-            let mut c: Option<Self> = None;
-            for factor in &factors {
-                if i % 2 == 1 {
-                    c = Some(if let Some(pre) = c {
-                        pre & factor.clone()
-                    } else {
-                        factor.clone()
-                    });
-                }
-                i >>= 1;
-            }
-            constrait = constrait + c.unwrap();
+    pub fn andor(factors: &[Self]) -> Self {
+        // Maintain the set of all nonempty combinations incrementally.
+        // This avoids bit-shift overflow when there are more factors than
+        // machine-word bits and deduplicates as each factor is introduced.
+        let mut combinations = Self::default();
+        for factor in factors {
+            let joint = combinations.clone() & factor.clone();
+            combinations = combinations + factor.clone() + joint;
         }
-        constrait
+        combinations
     }
 
     ///
@@ -377,7 +349,7 @@ impl Instantiables {
                     .iter()
                     .map(|e| Self::from_constraint_expr(ns, e))
                     .collect::<Result<Vec<Self>, SemanticError>>()?;
-                Ok(Self::andor(exprs))
+                Ok(Self::andor(&exprs))
             }
         }
     }

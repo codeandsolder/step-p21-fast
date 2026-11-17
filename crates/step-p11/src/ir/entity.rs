@@ -48,7 +48,9 @@ impl Legalize for EntityAttribute {
         let ty = TypeRef::legalize(ns, ss, scope, &attr.ty)?;
         let name = match &attr.name {
             ast::AttributeDecl::Reference(name) => name.clone(),
-            _ => unimplemented!(),
+            ast::AttributeDecl::Qualified {
+                attribute, rename, ..
+            } => rename.as_ref().unwrap_or(attribute).clone(),
         };
         Ok(Self {
             name,

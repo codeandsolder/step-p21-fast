@@ -84,7 +84,7 @@ pub fn function_call(input: &str) -> ParseResult<'_, QualifiableFactor> {
 pub fn actual_parameter_list(input: &str) -> ParseResult<'_, Vec<Expression>> {
     tuple((
         char('('),
-        opt(comma_separated(parameter)).map(|opt| opt.unwrap_or_default()),
+        opt(comma_separated(parameter)).map(Option::unwrap_or_default),
         char(')'),
     ))
     .map(|(_open, parameters, _close)| parameters)
@@ -101,6 +101,7 @@ pub fn parameter(input: &str) -> ParseResult<'_, Expression> {
 }
 
 /// 187 `built_in_function` = ABS
+///
 ///                       | ACOS
 ///                       | ASIN
 ///                       | ATAN

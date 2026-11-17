@@ -46,7 +46,7 @@ pub fn schema_decl(input: &str) -> ParseResult<'_, Schema> {
                     Declaration::Procedure(p) => procedures.push(p),
                     Declaration::Rule(r) => rules.push(r),
                     Declaration::SubTypeConstraint(sub) => {
-                        subtype_constraints.push(sub)
+                        subtype_constraints.push(sub);
                     }
                 }
             }
@@ -77,7 +77,7 @@ pub fn schema_body(
 ) -> ParseResult<'_, (Vec<InterfaceSpec>, Vec<Constant>, Vec<Declaration>)> {
     tuple((
         many0(interface_specification),
-        opt(constant_decl).map(|opt| opt.unwrap_or_default()),
+        opt(constant_decl).map(Option::unwrap_or_default),
         many0(alt((declaration, rule_decl.map(Declaration::Rule)))),
     ))
     .parse(input)
@@ -159,11 +159,11 @@ pub fn procedure_head(
         opt(
             tuple((char('('), semicolon_separated(param), char(')'))).map(
                 |(_open, params, _close)| {
-                    params.into_iter().flat_map(|ps| ps.into_iter()).collect()
+                    params.into_iter().flatten().collect()
                 },
             ),
         )
-        .map(|opt| opt.unwrap_or_default()),
+        .map(Option::unwrap_or_default),
         char(';'),
     ))
     .map(|(_procedure, name, parameters, _semicolon)| (name, parameters))
@@ -222,10 +222,8 @@ pub fn function_head(
             semicolon_separated(formal_parameter),
             char(')'),
         ))
-        .map(|(_open, params, _close)| {
-            params.into_iter().flat_map(|ps| ps.into_iter()).collect()
-        }))
-        .map(|opt| opt.unwrap_or_default()),
+        .map(|(_open, params, _close)| params.into_iter().flatten().collect()))
+        .map(Option::unwrap_or_default),
         char(':'),
         parameter_type,
         char(';'),
@@ -368,8 +366,8 @@ pub fn algorithm_head(
 ) -> ParseResult<'_, (Vec<Declaration>, Vec<Constant>, Vec<LocalVariable>)> {
     tuple((
         many0(declaration),
-        opt(constant_decl).map(|opt| opt.unwrap_or_default()),
-        opt(local_decl).map(|opt| opt.unwrap_or_default()),
+        opt(constant_decl).map(Option::unwrap_or_default),
+        opt(local_decl).map(Option::unwrap_or_default),
     ))
     .parse(input)
 }
@@ -388,7 +386,7 @@ pub fn local_decl(input: &str) -> ParseResult<'_, Vec<LocalVariable>> {
         char(';'),
     ))
     .map(|(_local, vars, _end, _semicolon)| {
-        vars.into_iter().flat_map(|var| var.into_iter()).collect()
+        vars.into_iter().flatten().collect()
     })
     .parse(input)
 }
@@ -444,7 +442,7 @@ pub fn reference_clause(input: &str) -> ParseResult<'_, InterfaceSpec> {
             tuple((char('('), comma_separated(resource_or_rename), char(')')))
                 .map(|(_open, ty, _close)| ty),
         )
-        .map(|opt| opt.unwrap_or_default()),
+        .map(Option::unwrap_or_default),
         char(';'),
     ))
     .map(|(_use, _from, name, resources, _semicolon)| {
@@ -486,7 +484,7 @@ pub fn use_clause(input: &str) -> ParseResult<'_, InterfaceSpec> {
             char(')'),
         ))
         .map(|(_open, ty, _close)| ty))
-        .map(|opt| opt.unwrap_or_default()),
+        .map(Option::unwrap_or_default),
         char(';'),
     ))
     .map(

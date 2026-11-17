@@ -133,7 +133,12 @@ impl Legalize for TypeDecl {
                     },
                 })
             }
-            _ => panic!(),
+            unsupported => {
+                return Err(SemanticError::UnsupportedConstruct {
+                    context: "type declaration",
+                    detail: format!("{unsupported:?}"),
+                });
+            }
         })
     }
 }

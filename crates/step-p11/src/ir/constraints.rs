@@ -147,21 +147,20 @@ pub fn gather_constraint_expr(
     for schema in &st.schemas {
         let scope = root.schema(&schema.name);
         for entity in &schema.entities {
-            match &entity.constraint {
-                Some(ast::Constraint::SuperTypeRule(expr)) => {
-                    let result = exprs.insert(
+            if let Some(ast::Constraint::SuperTypeRule(expr)) =
+                &entity.constraint
+            {
+                let result = exprs.insert(
+                    Path::entity(&scope, &entity.name),
+                    ConstraintExpr::from_ast_expr(ns, &scope, expr)?,
+                );
+                // This insert must be first time unless same ENTITY
+                // declaration exists
+                if result.is_some() {
+                    return Err(SemanticError::DuplicatedDeclaration(
                         Path::entity(&scope, &entity.name),
-                        ConstraintExpr::from_ast_expr(ns, &scope, expr)?,
-                    );
-                    // This insert must be first time unless same ENTITY
-                    // declaration exists
-                    if result.is_some() {
-                        return Err(SemanticError::DuplicatedDeclaration(
-                            Path::entity(&scope, &entity.name),
-                        ));
-                    }
+                    ));
                 }
-                _ => continue,
             }
         }
     }
