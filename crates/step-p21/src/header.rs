@@ -16,10 +16,11 @@
 //!
 //! These entities are defined in [ISO-10303-21 "8.2 Header section declarations"](https://www.iso.org/standard/63141.html)
 //! using EXPRESS schemas.
-//! Although we can generate corresponding Rust struct using step_p11 compiler,
-//! we write these definitions manually to keep development process simple.
+//! Although we can generate corresponding Rust struct using `step_p11`
+//! compiler, we write these definitions manually to keep development process
+//! simple.
 
-use crate::{ast::*, error::Result};
+use crate::{ast::Record, error::Result};
 use serde::Deserialize;
 
 /// File description
@@ -101,12 +102,15 @@ pub struct Header {
 }
 
 impl Header {
+    ///
+    /// # Errors
+    /// Returns an error if required header records are missing or malformed.
     pub fn from_records(records: &[Record]) -> Result<Self> {
         assert!(records.len() >= 3);
         let file_description = FileDescription::deserialize(&records[0])?;
         let file_name = FileName::deserialize(&records[1])?;
         let file_schema = FileSchema::deserialize(&records[2])?;
-        Ok(Header {
+        Ok(Self {
             file_description,
             file_name,
             file_schema,

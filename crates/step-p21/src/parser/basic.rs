@@ -1,14 +1,18 @@
 //! Parser for basic alphabets defined in the table 1 of ISO-10303-21
 
-use super::combinator::*;
+use super::combinator::ParseResult;
 use nom::{
     Parser,
     branch::alt,
     character::complete::{char, satisfy},
 };
 
-/// latin_codepoint = [space] | [digit] | [lower] | [upper] | [special] |
-/// [reverse_solidus] | [apostrophe]
+/// `latin_codepoint` = [space] | [digit] | [lower] | [upper] | [special] |
+/// [`reverse_solidus`] | [apostrophe]
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn latin_codepoint(input: &str) -> ParseResult<'_, char> {
     alt((
         space,
@@ -23,11 +27,19 @@ pub fn latin_codepoint(input: &str) -> ParseResult<'_, char> {
 }
 
 /// space = ` ` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn space(input: &str) -> ParseResult<'_, char> {
     char(' ')(input)
 }
 
 /// digit = `0` | `1` | `2` | `3` | `4` | `5` | `6` | `7` | `8` | `9` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn digit(input: &str) -> ParseResult<'_, char> {
     satisfy(|c| c.is_ascii_digit()).parse(input)
 }
@@ -36,6 +48,10 @@ pub fn digit(input: &str) -> ParseResult<'_, char> {
 ///       | `i` | `j` | `k` | `l` | `m` | `n` | `o` | `p`
 ///       | `q` | `r` | `s` | `t` | `u` | `v` | `w` | `x`
 ///       | `y` | `z` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn lower(input: &str) -> ParseResult<'_, char> {
     satisfy(|c| c.is_ascii_lowercase()).parse(input)
 }
@@ -44,6 +60,10 @@ pub fn lower(input: &str) -> ParseResult<'_, char> {
 ///       | `I` | `J` | `K` | `L` | `M` | `N` | `O` | `P`
 ///       | `Q` | `R` | `S` | `T` | `U` | `V` | `W` | `X`
 ///       | `Y` | `Z` | `_` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn upper(input: &str) -> ParseResult<'_, char> {
     satisfy(|c| c.is_ascii_uppercase() || c == '_').parse(input)
 }
@@ -51,6 +71,10 @@ pub fn upper(input: &str) -> ParseResult<'_, char> {
 /// special  = `!` | `"` | `*` | `$` | `%` | `&` | `.` | `#` | `+` | `,`  | `-`
 /// | `(` | `)` | `?` | `/` | `:` | `;` | `<`  | `=` | `>` | `@` | `[` | `]` |
 /// `{` | `|` | `}`  | `^` | \` | `~` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn special(input: &str) -> ParseResult<'_, char> {
     satisfy(|c| {
         matches!(
@@ -88,12 +112,20 @@ pub fn special(input: &str) -> ParseResult<'_, char> {
     .parse(input)
 }
 
-/// reverse_solidus = `\\` .
+/// `reverse_solidus` = `\\` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn reverse_solidus(input: &str) -> ParseResult<'_, char> {
     char('\\')(input)
 }
 
 /// apostrophe = `'` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn apostrophe(input: &str) -> ParseResult<'_, char> {
     char('\'')(input)
 }

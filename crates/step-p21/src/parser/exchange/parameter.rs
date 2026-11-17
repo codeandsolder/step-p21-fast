@@ -1,10 +1,19 @@
 use crate::{
-    ast::*,
-    parser::{combinator::*, token::*},
+    ast::Parameter,
+    parser::{
+        combinator::{ParseResult, char_, comma_separated, opt_, tuple_},
+        token::{
+            enumeration, integer, keyword, real, rhs_occurrence_name, string,
+        },
+    },
 };
 use nom::{Parser, branch::alt, combinator::value};
 
 /// list = `(` \[ [parameter] { `,` [parameter] } \] `)` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn list(input: &str) -> ParseResult<'_, Parameter> {
     tuple_((char_('('), opt_(comma_separated(parameter)), char_(')')))
         .map(|(_open, params, _close)| {
@@ -13,12 +22,21 @@ pub fn list(input: &str) -> ParseResult<'_, Parameter> {
         .parse(input)
 }
 
-/// parameter = [typed_parameter] | [untyped_parameter] | [omitted_parameter] .
+/// parameter = [`typed_parameter`] | [`untyped_parameter`] |
+/// [`omitted_parameter`] .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn parameter(input: &str) -> ParseResult<'_, Parameter> {
     alt((typed_parameter, untyped_parameter, omitted_parameter)).parse(input)
 }
 
-/// typed_parameter = [keyword] `(` [parameter] `)` .
+/// `typed_parameter` = [keyword] `(` [parameter] `)` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn typed_parameter(input: &str) -> ParseResult<'_, Parameter> {
     tuple_((keyword, char_('('), parameter, char_(')')))
         .map(|(name, _open, ty, _close)| Parameter::Typed {
@@ -28,8 +46,12 @@ pub fn typed_parameter(input: &str) -> ParseResult<'_, Parameter> {
         .parse(input)
 }
 
-/// untyped_parameter = `$` | [integer] | [real] | [string] |
-/// [rhs_occurrence_name] | [enumeration] | binary | [list] .
+/// `untyped_parameter` = `$` | [integer] | [real] | [string] |
+/// [`rhs_occurrence_name`] | [enumeration] | binary | [list] .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn untyped_parameter(input: &str) -> ParseResult<'_, Parameter> {
     alt((
         char_('$').map(|_| Parameter::NotProvided),
@@ -44,12 +66,20 @@ pub fn untyped_parameter(input: &str) -> ParseResult<'_, Parameter> {
     .parse(input)
 }
 
-/// omitted_parameter = `*` .
+/// `omitted_parameter` = `*` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn omitted_parameter(input: &str) -> ParseResult<'_, Parameter> {
     value(Parameter::Omitted, char_('*')).parse(input)
 }
 
-/// parameter_list = [parameter] { `,` [parameter] } .
+/// `parameter_list` = [parameter] { `,` [parameter] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn parameter_list(input: &str) -> ParseResult<'_, Vec<Parameter>> {
     comma_separated(parameter).parse(input)
 }

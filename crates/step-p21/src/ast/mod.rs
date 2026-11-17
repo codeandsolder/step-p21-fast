@@ -1,7 +1,7 @@
 //! Abstract syntax tree for exchange structure
 //!
-//! This module contains implementation of [serde::Serialize] and
-//! [serde::Deserialize] for AST structs.
+//! This module contains implementation of [`serde::Serialize`] and
+//! [`serde::Deserialize`] for AST structs.
 //!
 //! Deserialize
 //! ------------
@@ -12,8 +12,8 @@
 //! > exactly one of the methods
 //! > on the Visitor that it receives.
 //!
-//! [serde::de::Deserializer] trait is implemented for [Parameter],
-//! [Record], and [SubSuperRecord].
+//! [`serde::de::Deserializer`] trait is implemented for [Parameter],
+//! [Record], and [`SubSuperRecord`].
 //! Be sure that this mapping is not only for step_p11-generated structs.
 //! This can be used with other Rust structs using `serde_derive::Deserialize`
 //! custom derive:
@@ -44,6 +44,10 @@ use std::str::FromStr;
 
 /// AST portion
 pub trait AST: FromStr<Err = crate::error::Error> {
+    ///
+    /// # Errors
+    /// Returns a parse error when the input does not match the expected STEP
+    /// representation.
     fn parse(input: &str) -> parser::combinator::ParseResult<'_, Self>;
 }
 
@@ -78,25 +82,26 @@ macro_rules! derive_ast_from_str {
 
 /// Name of an entity instance or a value
 ///
-/// Corresponding to [parser::token::rhs_occurrence_name] and
-/// [parser::token::lhs_occurrence_name]
+/// Corresponding to [`parser::token::rhs_occurrence_name`] and
+/// [`parser::token::lhs_occurrence_name`]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Name {
-    /// Like `#11`, corresponds to [parser::token::entity_instance_name]
+    /// Like `#11`, corresponds to [`parser::token::entity_instance_name`]
     Entity(u64),
-    /// Like `@11`, corresponds to [parser::token::value_instance_name]
+    /// Like `@11`, corresponds to [`parser::token::value_instance_name`]
     Value(u64),
     /// Like `#CONST_ENTITY`, corresponds to
-    /// [parser::token::constant_entity_name]
+    /// [`parser::token::constant_entity_name`]
     ConstantEntity(String),
-    /// Like `@CONST_VALUE`, corresponds to [parser::token::constant_value_name]
+    /// Like `@CONST_VALUE`, corresponds to
+    /// [`parser::token::constant_value_name`]
     ConstantValue(String),
 }
 derive_ast_from_str!(Name, parser::token::rhs_occurrence_name);
 
 /// A struct typed in EXPRESS schema, e.g. `A(1.0, 2.0)`
 ///
-/// FromStr
+/// `FromStr`
 /// --------
 ///
 /// ```
@@ -117,7 +122,7 @@ derive_ast_from_str!(Name, parser::token::rhs_occurrence_name);
 /// Deserialize as a map
 /// ---------------------
 ///
-/// [serde::Deserializer] implementation for [Record] provides
+/// [`serde::Deserializer`] implementation for [Record] provides
 /// a mapping it into "map" in serde data model.
 /// The keyword is mapped into the key and the parameters are its value:
 ///
@@ -149,7 +154,7 @@ derive_ast_from_str!(Name, parser::token::rhs_occurrence_name);
 /// ---------------------------
 ///
 /// It is deserialized as a "struct" only when the hint function
-/// [serde::Deserializer::deserialize_struct] is called
+/// [`serde::Deserializer::deserialize_struct`] is called
 /// and the struct name matches to its keyword appears in the exchange
 /// structure. See [the manual of container attribute in serde](https://serde.rs/container-attrs.html)
 /// for detail.
@@ -221,14 +226,14 @@ derive_ast_from_str!(Name, parser::token::rhs_occurrence_name);
 ///
 /// Internal mapping cannot handle the case where
 /// both `employee` and `student` components co-exist.
-/// This case will be handled by external mapping using [SubSuperRecord].
+/// This case will be handled by external mapping using [`SubSuperRecord`].
 ///
 /// The detail of internal mapping is defined in 12.2.5.2 "Internal mapping"
 /// of [ISO-10303-21](https://www.iso.org/standard/63141.html).
 ///
 /// In terms of serde data model, [Record] is not self-describing
 /// when using internal mapping rule.
-/// Structs using internal mapping should implement [serde::Deserialize]
+/// Structs using internal mapping should implement [`serde::Deserialize`]
 /// as described in subtype-supertype constraint in EXPRESS schema.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Record {
@@ -240,7 +245,7 @@ derive_ast_from_str!(Record, parser::exchange::simple_record);
 /// A set of [Record] mapping to complex entity instance,
 /// e.g. `(A(1) B(2.0) C("3"))`
 ///
-/// FromStr
+/// `FromStr`
 /// --------
 ///
 /// ```
@@ -268,7 +273,7 @@ derive_ast_from_str!(Record, parser::exchange::simple_record);
 /// Deserialize as a map
 /// ---------------------
 ///
-/// Similar to [Record], [SubSuperRecord] can be deserialized as a "map":
+/// Similar to [Record], [`SubSuperRecord`] can be deserialized as a "map":
 ///
 /// ```
 /// use serde::Deserialize;
@@ -345,7 +350,7 @@ derive_ast_from_str!(Record, parser::exchange::simple_record);
 /// The detail of external mapping is defined in 12.2.5.3 "External mapping"
 /// of [ISO-10303-21](https://www.iso.org/standard/63141.html).
 ///
-/// [SubSuperRecord] is not self-describing because
+/// [`SubSuperRecord`] is not self-describing because
 /// EXPRESS does not defines memory layout of complex entities.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SubSuperRecord(pub Vec<Record>);
@@ -439,7 +444,7 @@ derive_ast_from_str!(DataSection, parser::exchange::data_section);
 /// assert_eq!(p, b);
 /// ```
 ///
-/// FromIterator
+/// `FromIterator`
 /// -------------
 /// Create a list as `Parameter::List` from `Iterator<Item=Parameter>` or
 /// `Iterator<Item=&Parameter>`.
@@ -475,7 +480,7 @@ pub enum Parameter {
     /// TYPED_PARAMETER = KEYWORD "(" PARAMETER ")" .
     /// ```
     ///
-    /// and [parser::exchange::typed_parameter].
+    /// and [`parser::exchange::typed_parameter`].
     /// It takes only one `PARAMETER` different from [Record],
     /// which takes many `PARAMETER`s.
     ///
@@ -483,7 +488,7 @@ pub enum Parameter {
     /// SIMPLE_RECORD = KEYWORD "(" [ PARAMETER_LIST ] ")" .
     /// ```
     ///
-    /// FromStr
+    /// `FromStr`
     /// --------
     /// ```
     /// use std::str::FromStr;
@@ -537,12 +542,12 @@ pub enum Parameter {
     /// ```
     Typed {
         keyword: String,
-        parameter: Box<Parameter>,
+        parameter: Box<Self>,
     },
 
     /// Signed integer
     ///
-    /// FromStr
+    /// `FromStr`
     /// --------
     /// ```
     /// use std::str::FromStr;
@@ -580,7 +585,7 @@ pub enum Parameter {
 
     /// Real number
     ///
-    /// FromStr
+    /// `FromStr`
     /// --------
     /// ```
     /// use std::str::FromStr;
@@ -594,7 +599,7 @@ pub enum Parameter {
 
     /// string literal
     ///
-    /// FromStr
+    /// `FromStr`
     /// --------
     /// ```
     /// use std::str::FromStr;
@@ -608,7 +613,7 @@ pub enum Parameter {
 
     /// Enumeration defined in EXPRESS schema, like `.TRUE.`
     ///
-    /// FromStr
+    /// `FromStr`
     /// --------
     /// ```
     /// # use std::str::FromStr;
@@ -637,7 +642,7 @@ pub enum Parameter {
 
     /// List of parameters. This can be non-uniform.
     ///
-    /// FromStr
+    /// `FromStr`
     /// --------
     /// ```
     /// use std::str::FromStr;
@@ -678,7 +683,7 @@ pub enum Parameter {
     /// assert_eq!(a, A { x: 1, y: 2, z: 3 });
     /// ```
     #[from]
-    List(Vec<Parameter>),
+    List(Vec<Self>),
 
     /// A reference to entity or value
     ///
@@ -733,26 +738,26 @@ pub enum Parameter {
 
 impl Parameter {
     pub fn integer(i: i64) -> Self {
-        Parameter::Integer(i)
+        Self::Integer(i)
     }
 
     pub fn real(x: f64) -> Self {
-        Parameter::Real(x)
+        Self::Real(x)
     }
 
     pub fn string(s: &str) -> Self {
-        Parameter::String(s.to_string())
+        Self::String(s.to_string())
     }
 }
 
-impl std::iter::FromIterator<Parameter> for Parameter {
-    fn from_iter<Iter: IntoIterator<Item = Parameter>>(iter: Iter) -> Self {
-        Parameter::List(iter.into_iter().collect())
+impl std::iter::FromIterator<Self> for Parameter {
+    fn from_iter<Iter: IntoIterator<Item = Self>>(iter: Iter) -> Self {
+        Self::List(iter.into_iter().collect())
     }
 }
 
-impl<'a> std::iter::FromIterator<&'a Parameter> for Parameter {
-    fn from_iter<Iter: IntoIterator<Item = &'a Parameter>>(iter: Iter) -> Self {
+impl<'a> std::iter::FromIterator<&'a Self> for Parameter {
+    fn from_iter<Iter: IntoIterator<Item = &'a Self>>(iter: Iter) -> Self {
         iter.into_iter().cloned().collect()
     }
 }
@@ -813,6 +818,6 @@ pub enum AnchorItem {
     /// A reference to entity or value
     Name(Name),
     /// List of other parameters
-    List(Vec<AnchorItem>),
+    List(Vec<Self>),
 }
 derive_ast_from_str!(AnchorItem, parser::exchange::anchor_item);

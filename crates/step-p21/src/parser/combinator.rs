@@ -65,6 +65,10 @@ pub fn opt_<'a, O>(
 ///
 /// These comments are dropped while parsing. Do not passed to following convert
 /// step.
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn comment(input: &str) -> ParseResult<'_, String> {
     let internal = alt((
         none_of("*"),
@@ -83,6 +87,10 @@ pub fn comment(input: &str) -> ParseResult<'_, String> {
 /// FIXME
 /// ------
 /// - support explicit print control directives
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn separator(input: &str) -> ParseResult<'_, ()> {
     let comment = many1(tuple((multispace0, comment, multispace0))).map(|_| ());
     alt((comment, value((), multispace1))).parse(input)
@@ -119,6 +127,10 @@ pub fn many1_<'a, O>(
     }
 }
 
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn ignorable(mut input: &str) -> ParseResult<'_, ()> {
     // Speculatively parsing a comment at every token boundary allocates a
     // VerboseError even when the input contains only ordinary whitespace.
@@ -177,6 +189,10 @@ pub fn tuple_<'a, O, List: Tuple<'a, O>>(
 
 /// helper for [tuple_]
 pub trait Tuple<'a, O>: Clone {
+    ///
+    /// # Errors
+    /// Returns a parse error when the input does not satisfy the corresponding
+    /// STEP grammar production.
     fn parse(&mut self, input: &'a str) -> ParseResult<'a, O>;
 }
 

@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::ast::{Parameter, Record, SubSuperRecord};
 use serde::{
     de::{self, IntoDeserializer},
     forward_to_deserialize_any,

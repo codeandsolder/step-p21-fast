@@ -1,8 +1,11 @@
 //! Parser for tokens defined in the table 2 of ISO-10303-21
 
 use crate::{
-    ast::*,
-    parser::{basic::*, combinator::*},
+    ast::{Name, URI},
+    parser::{
+        basic::{digit, lower, upper},
+        combinator::{ParseResult, tuple},
+    },
 };
 use nom::{
     Parser,
@@ -16,11 +19,19 @@ use nom::{
 };
 
 /// sign = `+` | `-` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn sign(input: &str) -> ParseResult<'_, char> {
     alt((char('+'), char('-'))).parse(input)
 }
 
 /// integer = \[ [sign] \] [digit] { [digit] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn integer(input: &str) -> ParseResult<'_, i64> {
     tuple((opt(sign), multispace0, digit1))
         .map(|(sign, _space, numbers)| {
@@ -50,6 +61,10 @@ fn exponent(input: &str) -> ParseResult<'_, i64> {
 
 /// real = \[ [sign] \] [digit] { [digit] } `.` { [digit] } \[ `E` \[ [sign] \]
 /// [digit] { [digit] } \] .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn real(input: &str) -> ParseResult<'_, f64> {
     let (rest, (sign, _space, integral, _point, fractional, exp)) = tuple((
         opt(sign),
@@ -76,8 +91,12 @@ pub fn real(input: &str) -> ParseResult<'_, f64> {
 }
 
 /// string = `'` { [special] | [digit] | [space] | [lower] | [upper] |
-/// high_codepoint | [apostrophe] [apostrophe] | [reverse_solidus]
-/// [reverse_solidus] | control_directive } `'` .
+/// `high_codepoint` | [apostrophe] [apostrophe] | [`reverse_solidus`]
+/// [`reverse_solidus`] | `control_directive` } `'` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn string(input: &str) -> ParseResult<'_, String> {
     let escaped_char = map(tag("''"), |_| '\''); // Parse '' as a single '
     let normal_char = none_of("'"); // Parse any character except '
@@ -89,9 +108,13 @@ pub fn string(input: &str) -> ParseResult<'_, String> {
         .parse(input)
 }
 
-/// resource = `<` UNIVERSAL_RESOURCE_IDENTIFIER `>` .
+/// resource = `<` `UNIVERSAL_RESOURCE_IDENTIFIER` `>` .
 ///
 /// Parse as string, without validating as URI
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn resource(input: &str) -> ParseResult<'_, URI> {
     tuple((char('<'), many0(none_of(">")), char('>')))
         .map(|(_start, s, _end)| URI(s.iter().collect()))
@@ -99,6 +122,10 @@ pub fn resource(input: &str) -> ParseResult<'_, URI> {
 }
 
 /// enumeration = `.` [upper] { [upper] | [digit] } `.` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn enumeration(input: &str) -> ParseResult<'_, String> {
     tuple((char('.'), standard_keyword, char('.')))
         .map(|(_head, name, _tail)| name)
@@ -120,7 +147,7 @@ fn u64_overflow(
     })
 }
 
-/// entity_instance_name = `#` ( [digit] ) { [digit] } .
+/// `entity_instance_name` = `#` ( [digit] ) { [digit] } .
 ///
 /// As discussed in ISO-10303-21 6.4.4.3 Entity instance names,
 ///
@@ -132,7 +159,11 @@ fn u64_overflow(
 /// Error
 /// -------
 /// - FIXME: If the input cannot be represented by `u64`, i.e. larger than
-///   [u64::MAX]
+///   [`u64::MAX`]
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
     let (input, name) = tuple((char('#'), digit1))
         .map(|(_sharp, name): (_, &str)| name.parse())
@@ -144,14 +175,18 @@ pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
     }
 }
 
-/// value_instance_name = `@` ( [digit] ) { [digit] } .
+/// `value_instance_name` = `@` ( [digit] ) { [digit] } .
 ///
-/// Leading zeros are ignored like as [entity_instance_name].
+/// Leading zeros are ignored like as [`entity_instance_name`].
 ///
 /// Error
 /// -------
 /// - FIXME: If the input cannot be represented by `u64`, i.e. larger than
-///   [u64::MAX]
+///   [`u64::MAX`]
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
     let (input, name) = tuple((char('@'), digit1))
         .map(|(_sharp, name): (_, &str)| name.parse())
@@ -163,21 +198,34 @@ pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
     }
 }
 
-/// constant_entity_name = `#` ( [upper] ) { [upper] | [digit] } .
+/// `constant_entity_name` = `#` ( [upper] ) { [upper] | [digit] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
     tuple((char('#'), standard_keyword))
         .map(|(_sharp, name)| name)
         .parse(input)
 }
 
-/// constant_value_name = `@` ( [upper] ) { [upper] | [digit] } .
+/// `constant_value_name` = `@` ( [upper] ) { [upper] | [digit] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn constant_value_name(input: &str) -> ParseResult<'_, String> {
     tuple((char('@'), standard_keyword))
         .map(|(_sharp, name)| name)
         .parse(input)
 }
 
-/// lhs_occurrence_name = ( [entity_instance_name] | [value_instance_name] ) .
+/// `lhs_occurrence_name` = ( [`entity_instance_name`] | [`value_instance_name`]
+/// ) .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn lhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
     alt((
         entity_instance_name.map(Name::Entity),
@@ -186,8 +234,12 @@ pub fn lhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
     .parse(input)
 }
 
-/// rhs_occurrence_name = ( [entity_instance_name] | [value_instance_name] |
-/// [constant_entity_name] | [constant_value_name]) .
+/// `rhs_occurrence_name` = ( [`entity_instance_name`] | [`value_instance_name`]
+/// | [`constant_entity_name`] | [`constant_value_name`]) .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn rhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
     alt((
         entity_instance_name.map(Name::Entity),
@@ -198,16 +250,24 @@ pub fn rhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
     .parse(input)
 }
 
-/// anchor_name = `<` URI_FRAGMENT_IDENTIFIER `>` .
+/// `anchor_name` = `<` `URI_FRAGMENT_IDENTIFIER` `>` .
 ///
 /// Parse as string, without validating as URI fragment identifier
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn anchor_name(input: &str) -> ParseResult<'_, String> {
     tuple((char('<'), many0(none_of(">")), char('>')))
         .map(|(_start, s, _end)| s.iter().collect())
         .parse(input)
 }
 
-/// keyword = [user_defined_keyword] | [standard_keyword] .
+/// keyword = [`user_defined_keyword`] | [`standard_keyword`] .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn keyword(input: &str) -> ParseResult<'_, String> {
     // An extension keyword is syntactically unambiguous at the first byte.
     // Avoid constructing a recoverable error for every ordinary keyword.
@@ -218,7 +278,11 @@ pub fn keyword(input: &str) -> ParseResult<'_, String> {
     }
 }
 
-/// standard_keyword = [upper] { [upper] | [digit] } .
+/// `standard_keyword` = [upper] { [upper] | [digit] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn standard_keyword(input: &str) -> ParseResult<'_, String> {
     let (rest, _) = upper(input)?;
     let (rest, _) = nom::bytes::complete::take_while(
@@ -230,14 +294,22 @@ pub fn standard_keyword(input: &str) -> ParseResult<'_, String> {
     Ok((rest, input[..input.len() - rest.len()].to_owned()))
 }
 
-/// user_defined_keyword = `!` [upper] { [upper] | [digit] } .
+/// `user_defined_keyword` = `!` [upper] { [upper] | [digit] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn user_defined_keyword(input: &str) -> ParseResult<'_, String> {
     tuple((char('!'), standard_keyword))
         .map(|(_e, name)| name)
         .parse(input)
 }
 
-/// tag_name = ( [upper] | [lower] ) { [upper] | [lower] | [digit] } .
+/// `tag_name` = ( [upper] | [lower] ) { [upper] | [lower] | [digit] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn tag_name(input: &str) -> ParseResult<'_, String> {
     tuple((alt((upper, lower)), many0(alt((upper, lower, digit)))))
         .map(|(first, tail)| {
@@ -247,7 +319,11 @@ pub fn tag_name(input: &str) -> ParseResult<'_, String> {
         .parse(input)
 }
 
-/// signature_content = BASE64 .
+/// `signature_content` = BASE64 .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn signature_content(input: &str) -> ParseResult<'_, String> {
     let base_char = satisfy(
         |c| matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '+' | '/' | '='),

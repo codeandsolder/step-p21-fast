@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::ops::*;
+use std::ops::{BitAnd, BitOr, BitXor, Not};
 
 /// `LOGICAL` type
 ///
@@ -71,33 +71,33 @@ pub enum Logical {
 impl std::fmt::Display for Logical {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
-            Logical::True => f.pad("true"),
-            Logical::Unknown => f.pad("unknown"),
-            Logical::False => f.pad("false"),
+            Self::True => f.pad("true"),
+            Self::Unknown => f.pad("unknown"),
+            Self::False => f.pad("false"),
         }
     }
 }
 
 impl From<bool> for Logical {
-    fn from(b: bool) -> Logical {
+    fn from(b: bool) -> Self {
         match b {
-            true => Logical::True,
-            false => Logical::False,
+            true => Self::True,
+            false => Self::False,
         }
     }
 }
 
 impl From<Option<bool>> for Logical {
-    fn from(option: Option<bool>) -> Logical {
+    fn from(option: Option<bool>) -> Self {
         match option {
             Some(b) => b.into(),
-            None => Logical::Unknown,
+            None => Self::Unknown,
         }
     }
 }
 
 impl From<Logical> for Option<bool> {
-    fn from(l: Logical) -> Option<bool> {
+    fn from(l: Logical) -> Self {
         match l {
             Logical::Unknown => None,
             _ => Some(l == Logical::True),
@@ -110,11 +110,11 @@ impl BitAnd for Logical {
 
     fn bitand(self, other: Self) -> Self {
         match (self, other) {
-            (Logical::False, _) => Logical::False,
-            (_, Logical::False) => Logical::False,
-            (Logical::Unknown, _) => Logical::Unknown,
-            (_, Logical::Unknown) => Logical::Unknown,
-            (Logical::True, Logical::True) => Logical::True,
+            (Self::False, _) => Self::False,
+            (_, Self::False) => Self::False,
+            (Self::Unknown, _) => Self::Unknown,
+            (_, Self::Unknown) => Self::Unknown,
+            (Self::True, Self::True) => Self::True,
         }
     }
 }
@@ -124,35 +124,35 @@ impl BitOr for Logical {
 
     fn bitor(self, other: Self) -> Self {
         match (self, other) {
-            (Logical::True, _) => Logical::True,
-            (_, Logical::True) => Logical::True,
-            (Logical::Unknown, _) => Logical::Unknown,
-            (_, Logical::Unknown) => Logical::Unknown,
-            (Logical::False, Logical::False) => Logical::False,
+            (Self::True, _) => Self::True,
+            (_, Self::True) => Self::True,
+            (Self::Unknown, _) => Self::Unknown,
+            (_, Self::Unknown) => Self::Unknown,
+            (Self::False, Self::False) => Self::False,
         }
     }
 }
 
 impl BitXor for Logical {
-    type Output = Logical;
+    type Output = Self;
 
-    fn bitxor(self, other: Self) -> Logical {
+    fn bitxor(self, other: Self) -> Self {
         match (self, other) {
-            (Logical::Unknown, _) => Logical::Unknown,
-            (_, Logical::Unknown) => Logical::Unknown,
+            (Self::Unknown, _) => Self::Unknown,
+            (_, Self::Unknown) => Self::Unknown,
             (_, _) => (self != other).into(),
         }
     }
 }
 
 impl Not for Logical {
-    type Output = Logical;
+    type Output = Self;
 
-    fn not(self) -> Logical {
+    fn not(self) -> Self {
         match self {
-            Logical::True => Logical::False,
-            Logical::Unknown => Logical::Unknown,
-            Logical::False => Logical::True,
+            Self::True => Self::False,
+            Self::Unknown => Self::Unknown,
+            Self::False => Self::True,
         }
     }
 }

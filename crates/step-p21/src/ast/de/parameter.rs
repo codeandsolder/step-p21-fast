@@ -1,5 +1,5 @@
-use super::*;
-use crate::ast::*;
+use super::RecordDeserializer;
+use crate::ast::Parameter;
 use inflector::Inflector;
 use serde::{
     de::{self, IntoDeserializer},

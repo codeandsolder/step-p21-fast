@@ -29,7 +29,7 @@ impl de::Error for Error {
     where
         T: fmt::Display,
     {
-        Error::DeserializeFailed(msg.to_string())
+        Self::DeserializeFailed(msg.to_string())
     }
 }
 
@@ -38,7 +38,7 @@ impl ser::Error for Error {
     where
         T: fmt::Display,
     {
-        Error::DeserializeFailed(msg.to_string())
+        Self::DeserializeFailed(msg.to_string())
     }
 }
 
@@ -78,7 +78,7 @@ impl TokenizeFailed {
         input: &str,
         err: nom_language::error::VerboseError<&str>,
     ) -> Self {
-        TokenizeFailed {
+        Self {
             rendered_error: nom_language::error::convert_error(input, err),
         }
     }

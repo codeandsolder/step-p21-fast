@@ -1,8 +1,15 @@
-use crate::{ast::*, error::*};
+use crate::{
+    ast::{Parameter, Record},
+    error::{Error, Result},
+};
 use serde::ser;
 use std::convert::TryFrom;
 
 /// Serialize struct into STEP [Record]
+///
+/// # Errors
+/// Returns an error when the provided value cannot be serialized as a STEP
+/// record.
 pub fn to_record(obj: &impl ser::Serialize) -> Result<Record> {
     let mut ser = RecordSerializer::default();
     obj.serialize(&mut ser)?;

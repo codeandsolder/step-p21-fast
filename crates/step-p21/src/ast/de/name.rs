@@ -1,4 +1,4 @@
-use crate::{ast::*, error::*};
+use crate::{ast::Name, error::Result};
 use serde::de::{self, IntoDeserializer};
 
 // Note for understanding serde enum types

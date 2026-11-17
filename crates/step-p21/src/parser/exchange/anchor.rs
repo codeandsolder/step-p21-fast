@@ -1,22 +1,42 @@
 use crate::{
-    ast::*,
-    parser::{combinator::*, token::*},
+    ast::{Anchor, AnchorItem},
+    parser::{
+        combinator::{
+            ParseResult, char_, comma_separated, many0_, opt_, tag_, tuple_,
+        },
+        token::{
+            anchor_name, enumeration, integer, real, rhs_occurrence_name,
+            string, tag_name,
+        },
+    },
 };
 use nom::{Parser, branch::alt};
 
-/// anchor_section = `ANCHOR;` [anchor_list] `ENDSEC;` .
+/// `anchor_section` = `ANCHOR;` [`anchor_list`] `ENDSEC;` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn anchor_section(input: &str) -> ParseResult<'_, Vec<Anchor>> {
     tuple_((tag_("ANCHOR;"), anchor_list, tag_("ENDSEC;")))
         .map(|(_start, anchors, _end)| anchors)
         .parse(input)
 }
 
-/// anchor_list = { [anchor()] } .
+/// `anchor_list` = { [`anchor()`] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn anchor_list(input: &str) -> ParseResult<'_, Vec<Anchor>> {
     many0_(anchor).parse(input)
 }
 
-/// anchor = [anchor_name] `=` [anchor_item] { [anchor_tag] } `;` .
+/// anchor = [`anchor_name`] `=` [`anchor_item`] { [`anchor_tag`] } `;` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn anchor(input: &str) -> ParseResult<'_, Anchor> {
     tuple_((
         anchor_name,
@@ -29,8 +49,12 @@ pub fn anchor(input: &str) -> ParseResult<'_, Anchor> {
     .parse(input)
 }
 
-/// anchor_item = `$` | [integer] | [real] | [string] | [enumeration] | binary |
-/// [rhs_occurrence_name] | [resource] | [anchor_item_list] .
+/// `anchor_item` = `$` | [integer] | [real] | [string] | [enumeration] | binary
+/// | [`rhs_occurrence_name`] | [resource] | [`anchor_item_list`] .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn anchor_item(input: &str) -> ParseResult<'_, AnchorItem> {
     alt((
         char_('$').map(|_| AnchorItem::NotProvided),
@@ -45,7 +69,11 @@ pub fn anchor_item(input: &str) -> ParseResult<'_, AnchorItem> {
     .parse(input)
 }
 
-/// anchor_item_list = `(` \[ [anchor_item] { `,` [anchor_item] } \] `)` .
+/// `anchor_item_list` = `(` \[ [`anchor_item`] { `,` [`anchor_item`] } \] `)` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn anchor_item_list(input: &str) -> ParseResult<'_, AnchorItem> {
     tuple_((char_('('), opt_(comma_separated(anchor_item)), char_(')')))
         .map(|(_open, anchors, _close)| {
@@ -54,7 +82,11 @@ pub fn anchor_item_list(input: &str) -> ParseResult<'_, AnchorItem> {
         .parse(input)
 }
 
-/// anchor_tag = `{` [tag_name] `:` [anchor_item] `}` .
+/// `anchor_tag` = `{` [`tag_name`] `:` [`anchor_item`] `}` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn anchor_tag(input: &str) -> ParseResult<'_, (String, AnchorItem)> {
     tuple_((char_('{'), tag_name, char_(':'), anchor_item, char_('}')))
         .map(|(_open, name, _colon, item, _close)| (name, item))
