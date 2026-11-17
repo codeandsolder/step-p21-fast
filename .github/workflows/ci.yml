@@ -22,7 +22,11 @@ jobs:
       rust-toolchain: "1.100.0"
       rust-components: "clippy rustfmt"
       command: |
-        cargo fmt --all -- --check
+        rustup toolchain install nightly --profile minimal --component rustfmt
+        mkdir -p "$RUNNER_TEMP/step-p21-tools"
+        ln -s "$(rustup which --toolchain nightly rustfmt)" "$RUNNER_TEMP/step-p21-tools/rustfmt"
+        export PATH="$RUNNER_TEMP/step-p21-tools:$PATH"
+        cargo +nightly fmt --all -- --check
         cargo test --workspace --all-features --locked
         cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
         cargo doc --workspace --no-deps --all-features --locked
@@ -39,7 +43,12 @@ jobs:
       validation-tier: release
       rust-toolchain: "1.85.0"
       rust-components: "rustfmt"
-      command: cargo test --workspace --all-features --locked
+      command: |
+        rustup toolchain install nightly --profile minimal --component rustfmt
+        mkdir -p "$RUNNER_TEMP/step-p21-tools"
+        ln -s "$(rustup which --toolchain nightly rustfmt)" "$RUNNER_TEMP/step-p21-tools/rustfmt"
+        export PATH="$RUNNER_TEMP/step-p21-tools:$PATH"
+        cargo test --workspace --all-features --locked
 
   strict-rust:
     name: Strict Rust

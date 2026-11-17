@@ -1,5 +1,3 @@
-#![allow(clippy::manual_is_ascii_check)]
-
 use super::{combinator::RawParseResult, reserved::is_reserved};
 use nom::{Parser, branch::*, character::complete::*, multi::*, sequence::*};
 
@@ -7,19 +5,24 @@ use nom::{Parser, branch::*, character::complete::*, multi::*, sequence::*};
 /// | `l` |`m` | `n` | `o` | `p` | `q` | `r` | `s` | `t` | `u` | `v` | `w` | `x`
 /// |`y` | `z` .
 pub fn letter(input: &str) -> RawParseResult<'_, char> {
-    satisfy(|c| matches!(c, 'A'..='Z' | 'a'..='z')).parse(input)
+    satisfy(|c| c.is_ascii_alphabetic()).parse(input)
 }
 
 /// 124 digit = `0` | `1` | `2` | `3` | `4` | `5` | `6` | `7` | `8` | `9` .
 pub fn digit(input: &str) -> RawParseResult<'_, char> {
-    satisfy(|c| matches!(c, '0'..='9')).parse(input)
+    satisfy(|c| c.is_ascii_digit()).parse(input)
 }
 
 /// 127 hex_digit = [digit] | `a` | `b` | `c` | `d` | `e` | `f` .
 pub fn hex_digit(input: &str) -> RawParseResult<'_, u8> {
-    let hex_letter = satisfy(|c| matches!(c, 'A'..='Z' | 'a'..='f'));
-    alt((digit, hex_letter))
-        .map(|c| c.to_digit(16).unwrap() as u8)
+    satisfy(|c: char| c.is_ascii_hexdigit())
+        .map(|c| {
+            if c.is_ascii_digit() {
+                c as u8 - b'0'
+            } else {
+                c.to_ascii_uppercase() as u8 - b'A' + 10
+            }
+        })
         .parse(input)
 }
 
@@ -134,7 +137,14 @@ mod tests {
         assert_eq!(l, 15);
         assert_eq!(residual, "23");
 
-        assert!(super::hex_digit("x").finish().is_err());
+        for invalid in ["G", "Z", "g", "z", "x", "é", ""] {
+            assert!(super::hex_digit(invalid).finish().is_err());
+        }
+        for (input, expected) in
+            [("0", 0), ("9", 9), ("A", 10), ("F", 15), ("f", 15)]
+        {
+            assert_eq!(super::hex_digit(input).finish().unwrap().1, expected);
+        }
     }
 
     #[test]

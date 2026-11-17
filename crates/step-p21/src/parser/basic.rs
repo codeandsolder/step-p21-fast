@@ -1,7 +1,5 @@
 //! Parser for basic alphabets defined in the table 1 of ISO-10303-21
 
-#![allow(clippy::manual_is_ascii_check)]
-
 use super::combinator::*;
 use nom::{
     Parser,
@@ -31,7 +29,7 @@ pub fn space(input: &str) -> ParseResult<'_, char> {
 
 /// digit = `0` | `1` | `2` | `3` | `4` | `5` | `6` | `7` | `8` | `9` .
 pub fn digit(input: &str) -> ParseResult<'_, char> {
-    satisfy(|c| matches!(c, '0'..='9')).parse(input)
+    satisfy(|c| c.is_ascii_digit()).parse(input)
 }
 
 /// lower = `a` | `b` | `c` | `d` | `e` | `f` | `g` | `h`
@@ -39,7 +37,7 @@ pub fn digit(input: &str) -> ParseResult<'_, char> {
 ///       | `q` | `r` | `s` | `t` | `u` | `v` | `w` | `x`
 ///       | `y` | `z` .
 pub fn lower(input: &str) -> ParseResult<'_, char> {
-    satisfy(|c| matches!(c, 'a'..='z')).parse(input)
+    satisfy(|c| c.is_ascii_lowercase()).parse(input)
 }
 
 /// upper = `A` | `B` | `C` | `D` | `E` | `F` | `G` | `H`
@@ -47,7 +45,7 @@ pub fn lower(input: &str) -> ParseResult<'_, char> {
 ///       | `Q` | `R` | `S` | `T` | `U` | `V` | `W` | `X`
 ///       | `Y` | `Z` | `_` .
 pub fn upper(input: &str) -> ParseResult<'_, char> {
-    satisfy(|c| matches!(c, 'A'..='Z' | '_')).parse(input)
+    satisfy(|c| c.is_ascii_uppercase() || c == '_').parse(input)
 }
 
 /// special  = `!` | `"` | `*` | `$` | `%` | `&` | `.` | `#` | `+` | `,`  | `-`

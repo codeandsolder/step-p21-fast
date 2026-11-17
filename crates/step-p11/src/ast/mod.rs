@@ -76,7 +76,7 @@ impl SyntaxTree {
     //
     // FIXME Replace by e.g. proptest
     // https://github.com/AltSysrq/proptest
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn example() -> Self {
         Self::parse(
             r#"

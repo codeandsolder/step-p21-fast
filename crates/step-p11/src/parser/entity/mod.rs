@@ -1,7 +1,10 @@
 mod attribute;
 mod derive;
 mod domain;
-#[allow(clippy::module_inception)]
+#[expect(
+    clippy::module_inception,
+    reason = "EXPRESS grammar distinguishes entity declarations from the entity parser module"
+)]
 mod entity;
 mod inverse;
 mod unique;
