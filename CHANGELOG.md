@@ -5,7 +5,7 @@
   Preserves whitespace-separated numeric grammar and reports complete
   AST equivalence across 29 real-world Monstertruck fixtures.
 - Adopted maintained shared Rust/sccache CI, strict Rust review, and fleet
-  Renovate policy; retained EXPRESS schema regression checks.
+  Renovate policy; retained EXPRESS grammar regression checks.
 - Updated repository metadata for the maintained downstream fork.
 
 # 0.1.1 (2026-08-18)
