@@ -298,9 +298,8 @@ mod tests {
         "#
         .trim();
 
-        let (residual, (entity, _remark)) =
+        let (residual, (_entity, _remark)) =
             super::subtype_constraint_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
     }
 }

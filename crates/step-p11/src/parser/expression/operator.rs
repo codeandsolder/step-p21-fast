@@ -115,8 +115,7 @@ mod tests {
 
     #[test]
     fn rel_op() {
-        let (res, (op, _remarks)) = super::rel_op("<=").finish().unwrap();
-        dbg!(op);
+        let (res, (_op, _remarks)) = super::rel_op("<=").finish().unwrap();
         assert_eq!(res, "");
     }
 }

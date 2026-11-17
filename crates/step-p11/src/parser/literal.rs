@@ -112,6 +112,17 @@ pub fn string_literal(input: &str) -> ParseResult<'_, String> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn rejects_out_of_range_integer_without_panicking() {
+        assert!(super::integer_literal("18446744073709551616").is_err());
+        assert!(super::integer_literal("99999999999999999999999999").is_err());
+        assert_eq!(
+            super::integer_literal("18446744073709551615").unwrap().1.0,
+            u64::MAX
+        );
+    }
+
     use nom::Finish;
 
     #[test]

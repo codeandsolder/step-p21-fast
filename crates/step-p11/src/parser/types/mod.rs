@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn type_decl_where() {
-        let (residual, (ty, _remark)) = super::type_decl(
+        let (residual, (_ty, _remark)) = super::type_decl(
             r#"
             TYPE dimension_count = INTEGER;
             WHERE
@@ -110,6 +110,5 @@ mod tests {
         .finish()
         .unwrap();
         assert_eq!(residual, "");
-        dbg!(ty);
     }
 }

@@ -124,6 +124,12 @@ pub fn simple_id(input: &str) -> RawParseResult<'_, String> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn invalid_utf8_encoded_literal_is_parse_error() {
+        assert!(super::encoded_string_literal("\"FFFFFFFF\"").is_err());
+    }
+
     use nom::Finish;
 
     #[test]

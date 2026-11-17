@@ -200,7 +200,6 @@ mod tests {
     fn simple() {
         let (res, (set, _remarks)) =
             super::parameter_type("STRING").finish().unwrap();
-        dbg!(&set);
         assert_eq!(res, "");
         assert_eq!(set, Type::Simple(SimpleType::String_ { width_spec: None }),)
     }
@@ -209,13 +208,11 @@ mod tests {
     fn named() {
         let (res, (set, _remarks)) =
             super::parameter_type("vim").finish().unwrap();
-        dbg!(&set);
         assert_eq!(res, "");
         assert_eq!(set, Type::Named("vim".to_string()),);
 
         let (res, (set, _remarks)) =
             super::parameter_type("generic_homhom").finish().unwrap();
-        dbg!(&set);
         assert_eq!(res, "");
         assert_eq!(set, Type::Named("generic_homhom".to_string()),);
     }
@@ -226,7 +223,6 @@ mod tests {
             super::parameter_type("SET [1:?] OF curve")
                 .finish()
                 .unwrap();
-        dbg!(&set);
         assert_eq!(res, "");
         assert_eq!(
             set,

@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn where_clause3() {
-        let (residual, (w, _remarks)) = super::where_clause(
+        let (residual, (_w, _remarks)) = super::where_clause(
             r#"
             WHERE
                 wr1 : VALUE_UNIQUE(s);
@@ -90,6 +90,5 @@ mod tests {
         .finish()
         .unwrap();
         assert_eq!(residual, "");
-        dbg!(w);
     }
 }

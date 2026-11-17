@@ -122,11 +122,9 @@ mod tests {
         let example = SyntaxTree::example();
         let ns = Namespace::new(&example);
         let ss = Constraints::new(&ns, &example).unwrap();
-        dbg!(&ns);
         let entity = &example.schemas[0].entities[0];
         let scope =
             Scope::root().pushed(ScopeType::Schema, &example.schemas[0].name);
-        let entity = Entity::legalize(&ns, &ss, &scope, entity).unwrap();
-        dbg!(&entity);
+        let _entity = Entity::legalize(&ns, &ss, &scope, entity).unwrap();
     }
 }

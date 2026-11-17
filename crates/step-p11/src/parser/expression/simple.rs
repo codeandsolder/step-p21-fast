@@ -295,12 +295,11 @@ mod tests {
 
     #[test]
     fn interval() {
-        let (res, (expr, _remarks)) =
+        let (res, (_expr, _remarks)) =
             super::interval("{1 <= date.day_component <= 31}")
                 .finish()
                 .unwrap();
         assert_eq!(res, "");
-        dbg!(expr);
     }
 
     #[test]
@@ -410,9 +409,8 @@ mod tests {
 
     #[test]
     fn call_attr() {
-        let (residual, (expr, _remarks)) =
+        let (residual, (_expr, _remarks)) =
             super::expression("f(a, b).attr").finish().unwrap();
-        dbg!(expr);
         assert_eq!(residual, "");
     }
 }

@@ -34,11 +34,10 @@ proc-macro2 = { workspace = true }
 Inflector = { workspace = true }
 derive_more = { workspace = true }
 itertools = { workspace = true }
-maplit = { workspace = true }
 thiserror = { workspace = true }
 clap = { workspace = true }
 check_keyword = { workspace = true }
-katexit = { workspace = true }
+
 
 [dev-dependencies]
 insta = { workspace = true }

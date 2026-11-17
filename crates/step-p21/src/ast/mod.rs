@@ -407,7 +407,7 @@ impl<'a> FromIterator<&'a Record> for SubSuperRecord {
 /// ENDSEC;
 /// "#;
 /// let data_section = DataSection::from_str(input).unwrap();
-/// dbg!(data_section);
+/// data_section;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataSection {

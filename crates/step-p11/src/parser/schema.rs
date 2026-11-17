@@ -580,9 +580,8 @@ mod tests {
         END_CONSTANT;
         "#
         .trim();
-        let (residual, (local, _remark)) =
+        let (residual, (_local, _remark)) =
             super::constant_decl(exp_str).finish().unwrap();
-        dbg!(&local);
         assert_eq!(residual, "");
     }
 
@@ -596,9 +595,8 @@ mod tests {
         END_LOCAL;
         "#
         .trim();
-        let (residual, (local, _remark)) =
+        let (residual, (_local, _remark)) =
             super::local_decl(exp_str).finish().unwrap();
-        dbg!(&local);
         assert_eq!(residual, "");
     }
 
@@ -612,9 +610,8 @@ mod tests {
         END_LOCAL;
         "#
         .trim();
-        let (residual, (local, _remark)) =
+        let (residual, (_local, _remark)) =
             super::local_decl(exp_str).finish().unwrap();
-        dbg!(&local);
         assert_eq!(residual, "");
     }
 
@@ -638,9 +635,8 @@ mod tests {
         END_RULE;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::rule_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -664,29 +660,26 @@ mod tests {
         END_RULE;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::rule_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
     #[test]
     fn formal_parameter1() {
-        let (residual, (p, _remark)) =
+        let (residual, (_p, _remark)) =
             super::formal_parameter("input : AGGREGATE:intype OF REAL")
                 .finish()
                 .unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
     }
 
     #[test]
     fn formal_parameter2() {
-        let (residual, (p, _remark)) =
+        let (residual, (_p, _remark)) =
             super::formal_parameter("a,b: GENERIC:intype")
                 .finish()
                 .unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
     }
 
@@ -712,9 +705,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -742,9 +734,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -759,9 +750,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -783,9 +773,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -815,9 +804,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 }

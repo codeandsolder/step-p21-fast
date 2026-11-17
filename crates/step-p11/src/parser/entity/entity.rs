@@ -281,7 +281,6 @@ mod tests {
 
         let (residual, (entity, _remark)) =
             super::entity_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
 
         assert_eq!(entity.name, "camera_model_d2");
@@ -304,7 +303,6 @@ mod tests {
 
         let (residual, (entity, _remark)) =
             super::entity_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
 
         assert_eq!(entity.name, "drawing_revision");
@@ -326,7 +324,6 @@ mod tests {
 
         let (residual, (entity, _remark)) =
             super::entity_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
 
         assert_eq!(entity.name, "si_unit");
@@ -352,9 +349,8 @@ mod tests {
         "#
         .trim();
 
-        let (residual, (entity, _remark)) =
+        let (residual, (_entity, _remark)) =
             super::entity_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
     }
 
@@ -389,9 +385,8 @@ mod tests {
         "#
         .trim();
 
-        let (residual, (entity, _remark)) =
+        let (residual, (_entity, _remark)) =
             super::entity_decl(input).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
     }
 
@@ -420,9 +415,8 @@ mod tests {
         "#
         .trim();
 
-        let (residual, (entity, _remark)) =
+        let (residual, (_entity, _remark)) =
             super::entity_decl(input).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
     }
 }

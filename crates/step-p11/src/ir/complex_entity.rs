@@ -4,7 +4,6 @@ use super::{ConstraintExpr, Namespace, Path, SemanticError};
 use itertools::Itertools;
 use std::cmp::Ordering;
 
-#[cfg_attr(doc, katexit::katexit)]
 /// Partial complex entity data type, e.g. $A \And B \And C$ in ISO document
 ///
 /// Each component, e.g. $A$, will be represented by an index.
@@ -101,7 +100,6 @@ impl std::ops::BitAnd for PartialComplexEntity {
     }
 }
 
-#[cfg_attr(doc, katexit::katexit)]
 /// Instantiable subtypes described by a list of partial complex entity, e.g.
 /// $[A, B & C]$
 ///
@@ -513,5 +511,28 @@ impl std::ops::Div<PartialComplexEntity> for Instantiables {
                 })
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Instantiables;
+
+    #[test]
+    fn andor_covers_every_nonempty_factor_combination() {
+        let a = Instantiables::single(1);
+        let b = Instantiables::single(2);
+        let c = Instantiables::single(3);
+        let actual = Instantiables::andor(&[a.clone(), b.clone(), c.clone()]);
+        let expected = a.clone()
+            + b.clone()
+            + c.clone()
+            + (a.clone() & b.clone())
+            + (a.clone() & c.clone())
+            + (b.clone() & c.clone())
+            + (a & b & c);
+        assert_eq!(actual, expected);
+        assert!(Instantiables::andor(&[]).parts.is_empty());
+        assert!(Instantiables::and(Vec::new()).parts.is_empty());
     }
 }

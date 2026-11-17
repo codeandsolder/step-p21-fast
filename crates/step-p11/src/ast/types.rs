@@ -6,7 +6,7 @@ use crate::{
     parser::simple_types,
 };
 
-/// Type declaration by [`type_decl`].
+/// Type declaration by [`crate::parser::type_decl`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeDecl {
     pub type_id: String,
@@ -80,7 +80,7 @@ pub enum SimpleType {
 
 derive_ast_component!(SimpleType, simple_types);
 
-/// Output of [`width_spec`]
+/// Output of [`crate::parser::width_spec`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WidthSpec {
     pub width: usize,
@@ -93,8 +93,8 @@ pub struct Bound {
     pub upper: Expression,
 }
 
-/// `EXTENSIBLE` and `GENERIC_ENTITY` keywords for [`select_type`] and
-/// [`enumeration_type`]
+/// `EXTENSIBLE` and `GENERIC_ENTITY` keywords for
+/// [`crate::parser::select_type`] and [`crate::parser::enumeration_type`]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Extensibility {
     /// No `EXTENSIBLE`

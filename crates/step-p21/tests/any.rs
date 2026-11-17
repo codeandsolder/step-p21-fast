@@ -35,11 +35,9 @@ ENDSEC;
 fn deserialize_base() {
     let (residual, p): (_, Record) =
         exchange::simple_record("BASE(1.0)").finish().unwrap();
-    dbg!(&p);
     assert_eq!(residual, "");
 
     let a: BaseHolder = Deserialize::deserialize(&p).unwrap();
-    dbg!(&a);
     assert_eq!(a, BaseHolder { x: 1.0 });
 }
 
@@ -63,11 +61,9 @@ fn deserialize_sub1() {
     fn test(input: &str, answer: Sub1Holder) {
         let (residual, p): (_, Record) =
             exchange::simple_record(input).finish().unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
 
         let a: Sub1Holder = Deserialize::deserialize(&p).unwrap();
-        dbg!(&a);
         assert_eq!(a, answer);
     }
 }
@@ -92,11 +88,9 @@ fn deserialize_base_any() {
     fn test(input: &str, answer: BaseAnyHolder) {
         let (residual, p): (_, Record) =
             exchange::simple_record(input).finish().unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
 
         let a: BaseAnyHolder = Deserialize::deserialize(&p).unwrap();
-        dbg!(&a);
         assert_eq!(a, answer);
     }
 }
@@ -121,12 +115,10 @@ fn deserialize_base_any_placeholder() {
     fn test(input: &str, answer: PlaceHolder<BaseAnyHolder>) {
         let (residual, p): (_, Record) =
             exchange::simple_record(input).finish().unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
 
         let a: PlaceHolder<BaseAnyHolder> =
             Deserialize::deserialize(&p).unwrap();
-        dbg!(&a);
         assert_eq!(a, answer);
     }
 }
@@ -153,14 +145,11 @@ fn into_base_any() {
 
         let (residual, p): (_, Record) =
             exchange::simple_record(input).finish().unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
 
         let holder = PlaceHolder::<BaseAnyHolder>::deserialize(&p).unwrap();
-        dbg!(&holder);
 
         let owned = holder.into_owned(&table).unwrap();
-        dbg!(&owned);
         assert_eq!(owned, answer);
     }
 }
@@ -190,10 +179,8 @@ fn lookup_base_any() {
         let table = Tables::from_str(EXAMPLE).unwrap();
 
         let holder = PlaceHolder::<BaseAnyHolder>::deserialize(&p).unwrap();
-        dbg!(&holder);
 
         let owned = holder.into_owned(&table).unwrap();
-        dbg!(&owned);
         assert_eq!(owned, answer);
     }
 }

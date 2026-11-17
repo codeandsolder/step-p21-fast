@@ -127,19 +127,18 @@ mod tests {
 
     #[test]
     fn simple_recode1() {
-        let (res, record) = super::simple_record("A(1, 2.0)").finish().unwrap();
-        dbg!(record);
+        let (res, _record) =
+            super::simple_record("A(1, 2.0)").finish().unwrap();
         assert_eq!(res, "");
     }
 
     #[test]
     fn simple_recode2() {
-        let (res, record) = super::simple_record(
+        let (res, _record) = super::simple_record(
             "LENGTH_MEASURE_WITH_UNIT( LENGTH_MEASURE( 1.00000000000000 ), #359 )",
         )
         .finish()
         .unwrap();
-        dbg!(record);
         assert_eq!(res, "");
     }
 }

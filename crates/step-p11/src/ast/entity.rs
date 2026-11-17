@@ -40,7 +40,7 @@ impl Entity {
     }
 }
 
-/// Intermediate output of [`entity_body`]
+/// Intermediate output of [`crate::parser::entity_body`]
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntityBody {
     pub attributes: Vec<EntityAttribute>,
@@ -58,7 +58,7 @@ pub enum AttributeDecl {
         group: String,
         /// Like `.x`
         attribute: String,
-        /// For [`redeclared_attribute`]
+        /// For [`crate::parser::redeclared_attribute`]
         rename: Option<String>,
     },
 }
@@ -97,7 +97,7 @@ pub struct InverseClause {
     pub attributes: Vec<InverseAttribute>,
 }
 
-/// Attribute of an inverse clause parsed by [`inverse_attr`]
+/// Attribute of an inverse clause parsed by [`crate::parser::inverse_attr`]
 ///
 /// From ISO 10303-11 document,
 ///

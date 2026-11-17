@@ -124,6 +124,12 @@ pub fn width_spec(input: &str) -> ParseResult<'_, WidthSpec> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn rejects_oversized_width_spec_without_panicking() {
+        assert!(super::width_spec("(18446744073709551616)").is_err());
+    }
+
     use crate::ast::{SimpleType, WidthSpec};
     use nom::Finish;
 

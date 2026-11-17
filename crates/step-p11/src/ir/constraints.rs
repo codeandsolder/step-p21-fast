@@ -438,7 +438,7 @@ mod tests {
         let scope = Scope::root().schema("test_schema");
         let pet = Path::entity(&scope, "pet");
         assert_eq!(
-            dbg!(exprs),
+            exprs,
             maplit::hashmap! {
                 pet => ConstraintExpr::OneOf(vec![
                     ConstraintExpr::Reference(Path::entity(&scope, "cat")),
@@ -457,7 +457,7 @@ mod tests {
         let scope = Scope::root().schema("test_schema");
         let person = Path::entity(&scope, "person");
         assert_eq!(
-            dbg!(exprs),
+            exprs,
             maplit::hashmap! {
                 person => ConstraintExpr::AndOr(vec![
                     ConstraintExpr::Reference(Path::entity(&scope, "employee")),
@@ -475,7 +475,7 @@ mod tests {
         let scope = Scope::root().schema("test_schema");
         let person = Path::entity(&scope, "person");
         assert_eq!(
-            dbg!(exprs),
+            exprs,
             maplit::hashmap! {
                 person => ConstraintExpr::AndOr(vec![
                     ConstraintExpr::Reference(Path::entity(&scope, "employee")),
@@ -493,7 +493,7 @@ mod tests {
         let scope = Scope::root().schema("test_schema");
         let person = Path::entity(&scope, "person");
         assert_eq!(
-            dbg!(exprs),
+            exprs,
             maplit::hashmap! {
                 person => ConstraintExpr::AndOr(vec![
                     ConstraintExpr::Reference(Path::entity(&scope, "employee")),
@@ -511,7 +511,7 @@ mod tests {
         let scope = Scope::root().schema("test_schema");
         let person = Path::entity(&scope, "person");
         assert_eq!(
-            dbg!(exprs),
+            exprs,
             maplit::hashmap! {
                 person => ConstraintExpr::And(vec![
                     ConstraintExpr::OneOf(vec![
@@ -535,7 +535,7 @@ mod tests {
         let scope = Scope::root().schema("test_schema");
         let person = Path::entity(&scope, "person");
         assert_eq!(
-            dbg!(exprs),
+            exprs,
             maplit::hashmap! {
                 person => ConstraintExpr::And(vec![
                     ConstraintExpr::OneOf(vec![
@@ -558,7 +558,7 @@ mod tests {
         let c = Constraints::new(&ns, &st).unwrap();
         let scope = Scope::root().schema("test_schema");
         assert_eq!(
-            dbg!(c),
+            c,
             Constraints {
                 instantiables: maplit::hashmap! {
                     Path::entity(&scope, "pet") => vec![
@@ -578,7 +578,7 @@ mod tests {
         let c = Constraints::new(&ns, &st).unwrap();
         let scope = Scope::root().schema("test_schema");
         assert_eq!(
-            dbg!(c),
+            c,
             Constraints {
                 instantiables: maplit::hashmap! {
                     Path::entity(&scope, "base") => vec![
@@ -597,7 +597,7 @@ mod tests {
         let c = Constraints::new(&ns, &st).unwrap();
         let scope = Scope::root().schema("test_schema");
         assert_eq!(
-            dbg!(c),
+            c,
             Constraints {
                 instantiables: maplit::hashmap! {
                     Path::entity(&scope, "person") => vec![
@@ -617,7 +617,7 @@ mod tests {
         let c = Constraints::new(&ns, &st).unwrap();
         let scope = Scope::root().schema("test_schema");
         assert_eq!(
-            dbg!(c),
+            c,
             Constraints {
                 instantiables: maplit::hashmap! {
                     Path::entity(&scope, "person") => vec![
@@ -638,7 +638,7 @@ mod tests {
         let c = Constraints::new(&ns, &st).unwrap();
         let scope = Scope::root().schema("test_schema");
         assert_eq!(
-            dbg!(c),
+            c,
             Constraints {
                 instantiables: maplit::hashmap! {
                     Path::entity(&scope, "person") => vec![

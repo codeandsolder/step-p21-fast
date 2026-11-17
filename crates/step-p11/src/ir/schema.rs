@@ -53,10 +53,8 @@ mod tests {
         let example = SyntaxTree::example();
         let ns = Namespace::new(&example);
         let ss = Constraints::new(&ns, &example).unwrap();
-        dbg!(&ns, &ss);
         let schema = &example.schemas[0];
         let scope = Scope::root();
-        let schema = Schema::legalize(&ns, &ss, &scope, schema).unwrap();
-        dbg!(&schema);
+        let _schema = Schema::legalize(&ns, &ss, &scope, schema).unwrap();
     }
 }

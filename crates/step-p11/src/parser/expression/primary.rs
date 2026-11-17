@@ -100,36 +100,13 @@ pub fn parameter(input: &str) -> ParseResult<'_, Expression> {
     expression(input)
 }
 
-/// 187 `built_in_function` = ABS
+/// EXPRESS grammar production 187, the built-in function identifiers.
 ///
-///                       | ACOS
-///                       | ASIN
-///                       | ATAN
-///                       | BLENGTH
-///                       | COS
-///                       | EXISTS
-///                       | EXP
-///                       | FORMAT
-///                       | HIBOUND
-///                       | HIINDEX
-///                       | LENGTH
-///                       | LOBOUND
-///                       | LOINDEX
-///                       | LOG
-///                       | LOG2
-///                       | LOG10
-///                       | NVL
-///                       | ODD
-///                       | ROLESOF
-///                       | SIN
-///                       | SIZEOF
-///                       | SQRT
-///                       | TAN
-///                       | TYPEOF
-///                       | USEDIN
-///                       | VALUE
-///                       | `VALUE_IN`
-///                       | `VALUE_UNIQUE` .
+/// ```text
+/// built_in_function = ABS | ACOS | ASIN | ATAN | BLENGTH | COS | EXISTS | EXP | FORMAT | HIBOUND
+///   | HIINDEX | LENGTH | LOBOUND | LOINDEX | LOG | LOG2 | LOG10 | NVL | ODD | ROLESOF
+///   | SIN | SIZEOF | SQRT | TAN | TYPEOF | USEDIN | VALUE | VALUE_IN | VALUE_UNIQUE .
+/// ```
 ///
 /// # Errors
 /// Returns a parse error if the input does not satisfy the corresponding
@@ -365,10 +342,9 @@ mod tests {
 
     #[test]
     fn function_call_builtin() {
-        let (res, (q, _remarks)) =
+        let (res, (_q, _remarks)) =
             super::primary("VALUE_UNIQUE(x)").finish().unwrap();
         assert_eq!(res, "");
-        dbg!(q);
     }
 
     #[test]
@@ -441,9 +417,8 @@ mod tests {
 
     #[test]
     fn call_attr() {
-        let (residual, (expr, _remarks)) =
+        let (residual, (_expr, _remarks)) =
             super::primary("f(a, b).attr").finish().unwrap();
-        dbg!(expr);
         assert_eq!(residual, "");
     }
 }

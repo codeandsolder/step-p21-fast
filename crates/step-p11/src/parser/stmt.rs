@@ -415,9 +415,8 @@ mod tests {
         END_ALIAS;
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::alias_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -431,9 +430,8 @@ mod tests {
         END_IF;
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::if_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -448,9 +446,8 @@ mod tests {
         END_IF;
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::if_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -461,9 +458,8 @@ mod tests {
         INSERT (point_list, this_point, here );
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::procedure_call_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -474,9 +470,8 @@ mod tests {
         RETURN (SQRT((s.x - e.x)**2 + (s.y - e.y)**2 + (s.z - e.z)**2));
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::return_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -487,9 +482,8 @@ mod tests {
         RETURN ((type1 IN USEDIN(sample, '')) AND (type2 IN USEDIN(sample, '')));
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::return_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -500,9 +494,8 @@ mod tests {
         RETURN;
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::return_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -513,9 +506,8 @@ mod tests {
         SKIP;
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::skip_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -530,9 +522,8 @@ mod tests {
         END_REPEAT;
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::repeat_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 
@@ -545,9 +536,8 @@ mod tests {
         END_REPEAT;
         "#
         .trim();
-        let (residual, (result, _remark)) =
+        let (residual, (_result, _remark)) =
             super::repeat_stmt(exp_str).finish().unwrap();
-        dbg!(&result);
         assert_eq!(residual, "");
     }
 }

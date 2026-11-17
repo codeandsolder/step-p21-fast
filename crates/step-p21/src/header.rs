@@ -146,7 +146,6 @@ mod tests {
             crate::parser::exchange::header_section(header)
                 .finish()
                 .unwrap();
-        let header = super::Header::from_records(&records).unwrap();
-        dbg!(header);
+        let _header = super::Header::from_records(&records).unwrap();
     }
 }

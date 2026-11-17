@@ -65,8 +65,8 @@ mod tests {
 
     #[test]
     fn aggregate_initializer_empty() {
-        let (res, (expr, _remarks)) = super::expression("[]").finish().unwrap();
-        dbg!(expr);
+        let (res, (_expr, _remarks)) =
+            super::expression("[]").finish().unwrap();
         assert_eq!(res, "");
     }
 

@@ -29,10 +29,8 @@ use test_schema::*;
 fn deserialize_base() {
     let (residual, p): (_, Record) =
         exchange::simple_record("BASE(1.0)").finish().unwrap();
-    dbg!(&p);
     assert_eq!(residual, "");
     let a: BaseHolder = Deserialize::deserialize(&p).unwrap();
-    dbg!(&a);
     assert_eq!(a, BaseHolder { x: 1.0 });
 }
 
@@ -55,10 +53,8 @@ fn deserialize_sub() {
     fn test(input: &str, answer: SubHolder) {
         let (residual, p): (_, Record) =
             exchange::simple_record(input).finish().unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
         let a: SubHolder = Deserialize::deserialize(&p).unwrap();
-        dbg!(&a);
         assert_eq!(a, answer);
     }
 }
@@ -79,10 +75,8 @@ fn deserialize_subsub() {
     fn test(input: &str, answer: SubsubHolder) {
         let (residual, p): (_, Record) =
             exchange::simple_record(input).finish().unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
         let a: SubsubHolder = Deserialize::deserialize(&p).unwrap();
-        dbg!(&a);
         assert_eq!(a, answer);
     }
 }
