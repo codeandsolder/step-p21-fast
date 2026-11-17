@@ -69,7 +69,7 @@ divergence is recorded there rather than summarised loosely.
   They are serialized as ASCII text (ISO-10303-21, usually with extension `*.step`, `*.stp` or `*.p21`) or XML (ISO-10303-28).
 - Schema language is called **EXPRESS**. EXPRESS file is usually named with extension `*.exp`.
 - Many common schemas are defined in ISO-10303 by EXPRESS language.
-  - [`schemas`](https://github.com/virtualritz/step-p21/tree/master/schemas) contains copies
+  - [`schemas`](https://github.com/codeandsolder/step-p21-fast/tree/master/schemas) contains copies
   - Application Protocol (AP) is a class of defined schemas, and the main target of this project.
   - AP203 is most famous one in CAD (computer-aided design) applications.
 
@@ -127,8 +127,8 @@ limitations under the License.
 The following directories are included for development purpose.
 **They are not parts of this project**.
 
-- [`schemas`](https://github.com/virtualritz/step-p21/tree/master/schemas)
-- [`crates/step-p21/tests/steps`](https://github.com/virtualritz/step-p21/tree/master/crates/step-p21/tests/steps)
+- [`schemas`](https://github.com/codeandsolder/step-p21-fast/tree/master/schemas)
+- [`crates/step-p21/tests/steps`](https://github.com/codeandsolder/step-p21-fast/tree/master/crates/step-p21/tests/steps)
 
 ## Contributing
 

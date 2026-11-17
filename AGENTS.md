@@ -48,9 +48,8 @@ has to decode: `parameter` not `param`, `reference` not `ref`, `identifier` not
 `id` where the long form is the domain term. This is deliberately different from
 upstream, which inherited terse EXPRESS-flavored names.
 
-Every rename ships a `#[deprecated]` alias so code written against upstream
-`ruststep` or an earlier `step-p21` keeps compiling. Removing an alias is a
-breaking change and needs a major version.
+Prefer a coherent API over carrying compatibility aliases. Document breaking
+changes explicitly and update downstream consumers together.
 
 Standard-mandated spellings are not ours to change: `ISO-10303-21`, entity
 keywords (`ADVANCED_FACE`), and EXPRESS keywords stay exactly as the standard

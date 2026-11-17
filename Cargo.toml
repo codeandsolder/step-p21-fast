@@ -13,7 +13,7 @@ version = "0.1.1"
 edition = "2024"
 rust-version = "1.85"
 license = "Apache-2.0"
-repository = "https://github.com/virtualritz/step-p21"
+repository = "https://github.com/codeandsolder/step-p21-fast"
 authors = [
   "Moritz Moeller <virtualritz@protonmail.com>",
   "Toshiki Teramura <teramura@ricos.co.jp>",

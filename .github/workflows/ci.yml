@@ -1,0 +1,48 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [master]
+    tags: ["*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Test, lint, docs, EXPRESS regression
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@47aa3c1b587f9933f56310f82427ff86539b3ac9 # main
+    with:
+      rust-toolchain: "1.100.0"
+      rust-components: "clippy rustfmt"
+      command: |
+        cargo fmt --all -- --check
+        cargo test --workspace --all-features --locked
+        cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+        cargo doc --workspace --no-deps --all-features --locked
+        for ap in 201 203; do
+          cargo run --release --locked --bin expressc -- "./schemas/APs/10303-${ap}-aim-long.exp" --check
+          cargo run --release --locked --bin expressc -- "./schemas/APs/10303-${ap}-aim-long.exp" | rustfmt > "/tmp/step-p21-ap${ap}.rs"
+          diff -u "./crates/step-p21/src/ap${ap}.rs" "/tmp/step-p21-ap${ap}.rs"
+        done
+
+  msrv:
+    name: MSRV (release tags)
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@47aa3c1b587f9933f56310f82427ff86539b3ac9 # main
+    with:
+      validation-tier: release
+      rust-toolchain: "1.85.0"
+      rust-components: "rustfmt"
+      command: cargo test --workspace --all-features --locked
+
+  strict-rust:
+    name: Strict Rust
+    uses: codeandsolder/rust-skills2/.github/workflows/strict-rust.yml@00a63ba02d14f0868af9820edcab51a8da64939a # main
+    with:
+      allow-test-panics: true
