@@ -663,6 +663,7 @@ version = "0.1.1"
 dependencies = [
  "Inflector",
  "anyhow",
+ "derive-new",
  "derive_more",
  "itertools",
  "maplit",

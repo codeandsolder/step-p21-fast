@@ -1,6 +1,6 @@
-use super::*;
+use super::{as_holder_ident, step_p21_crate};
 
-use proc_macro_error2::{Diagnostic, Level};
+use proc_macro_error2::{Diagnostic, Level, OptionExt};
 use std::convert::{TryFrom, TryInto};
 
 /// step_p11-generated field type
@@ -9,44 +9,46 @@ pub enum FieldType {
     /// Like `T`
     Path(syn::Path),
     /// Like `Option<T>`
-    Optional(Box<FieldType>),
+    Optional(Box<Self>),
     /// Like `Vec<T>`
-    List(Box<FieldType>),
+    List(Box<Self>),
     /// Like `Box<T>`
-    Boxed(Box<FieldType>),
+    Boxed(Box<Self>),
 }
 
 impl FieldType {
     pub fn into_holder(self) -> Self {
         match self {
-            FieldType::Path(path) => {
+            Self::Path(path) => {
                 let syn::Path {
                     leading_colon,
                     mut segments,
                 } = path;
-                let last_seg = segments.last_mut().unwrap();
+                let last_seg = segments
+                    .last_mut()
+                    .expect_or_abort("field path has no segments");
                 match &mut last_seg.arguments {
                     syn::PathArguments::None => {
                         last_seg.ident = as_holder_ident(&last_seg.ident);
                     }
                     _ => unreachable!(),
                 }
-                FieldType::Path(syn::Path {
+                Self::Path(syn::Path {
                     leading_colon,
                     segments,
                 })
             }
-            FieldType::Optional(ty) => {
+            Self::Optional(ty) => {
                 let holder = ty.into_holder();
-                FieldType::Optional(Box::new(holder))
+                Self::Optional(Box::new(holder))
             }
-            FieldType::List(ty) => {
+            Self::List(ty) => {
                 let holder = ty.into_holder();
-                FieldType::List(Box::new(holder))
+                Self::List(Box::new(holder))
             }
-            FieldType::Boxed(ty) => {
+            Self::Boxed(ty) => {
                 let holder = ty.into_holder();
-                FieldType::Boxed(Box::new(holder))
+                Self::Boxed(Box::new(holder))
             }
         }
     }
@@ -54,22 +56,22 @@ impl FieldType {
     pub fn into_place_holder(self) -> Self {
         let step_p21 = step_p21_crate();
         match self {
-            FieldType::Path(path) => {
+            Self::Path(path) => {
                 let path =
                     syn::parse_quote! { #step_p21::tables::PlaceHolder<#path> };
-                FieldType::Path(path)
+                Self::Path(path)
             }
-            FieldType::Optional(ty) => {
+            Self::Optional(ty) => {
                 let place_holder = ty.into_place_holder();
-                FieldType::Optional(Box::new(place_holder))
+                Self::Optional(Box::new(place_holder))
             }
-            FieldType::List(ty) => {
+            Self::List(ty) => {
                 let place_holder = ty.into_place_holder();
-                FieldType::List(Box::new(place_holder))
+                Self::List(Box::new(place_holder))
             }
-            FieldType::Boxed(ty) => {
+            Self::Boxed(ty) => {
                 let place_holder = ty.into_place_holder();
-                FieldType::Boxed(Box::new(place_holder))
+                Self::Boxed(Box::new(place_holder))
             }
         }
     }
@@ -92,20 +94,20 @@ impl From<FieldType> for syn::Type {
         let path = match field_type {
             FieldType::Path(path) => path,
             FieldType::Optional(ty) => {
-                let ty: syn::Type = (*ty).into();
+                let ty: Self = (*ty).into();
                 syn::parse_quote! { Option<#ty> }
             }
             FieldType::List(ty) => {
-                let ty: syn::Type = (*ty).into();
+                let ty: Self = (*ty).into();
                 syn::parse_quote! { Vec<#ty> }
             }
             FieldType::Boxed(ty) => {
-                let ty: syn::Type = (*ty).into();
+                let ty: Self = (*ty).into();
                 syn::parse_quote! { Box<#ty> }
             }
         };
         // syn 3 added `attrs` to `TypePath`; a synthesised type carries none.
-        syn::Type::Path(syn::TypePath {
+        Self::Path(syn::TypePath {
             attrs: Vec::new(),
             qself: None,
             path,
@@ -117,31 +119,31 @@ impl TryFrom<syn::Type> for FieldType {
     type Error = UnsupportedTypeError;
 
     fn try_from(ty: syn::Type) -> Result<Self, Self::Error> {
-        let path = if let syn::Type::Path(syn::TypePath { path, .. }) = ty {
-            path
-        } else {
+        let syn::Type::Path(syn::TypePath { path, .. }) = ty else {
             return Err(UnsupportedTypeError {});
         };
 
         let syn::Path { segments, .. } = &path;
-        let last_seg = segments.last().unwrap();
+        let last_seg = segments.last().ok_or(UnsupportedTypeError {})?;
 
         match &last_seg.arguments {
-            syn::PathArguments::None => Ok(FieldType::Path(path.clone())),
+            syn::PathArguments::None => Ok(Self::Path(path.clone())),
             syn::PathArguments::AngleBracketed(
                 syn::AngleBracketedGenericArguments { args, .. },
             ) => {
-                assert_eq!(args.len(), 1);
+                if args.len() != 1 {
+                    return Err(UnsupportedTypeError {});
+                }
                 if let syn::GenericArgument::Type(ty) = &args[0] {
                     let ty = Box::new(ty.clone().try_into()?);
                     if last_seg.ident == "Option" {
-                        return Ok(FieldType::Optional(ty));
+                        return Ok(Self::Optional(ty));
                     }
                     if last_seg.ident == "Vec" {
-                        return Ok(FieldType::List(ty));
+                        return Ok(Self::List(ty));
                     }
                     if last_seg.ident == "Box" {
-                        return Ok(FieldType::Boxed(ty));
+                        return Ok(Self::Boxed(ty));
                     }
                 }
                 Err(UnsupportedTypeError {})

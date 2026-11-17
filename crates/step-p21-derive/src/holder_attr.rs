@@ -7,7 +7,9 @@
 //! - `#[holder(use_place_holder)]`
 //! - `#[holder(generate_deserialize)]`
 
-#[derive(Debug, Clone, PartialEq)]
+use proc_macro_error2::abort;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HolderAttr {
     pub table: Option<syn::Path>,
     pub field: Option<syn::Ident>,
@@ -32,7 +34,9 @@ impl HolderAttr {
                 continue;
             }
 
-            match attr.parse_args().unwrap() {
+            match attr.parse_args().unwrap_or_else(|error: syn::Error| {
+                abort!(error.span(), "invalid #[holder] attribute: {}", error)
+            }) {
                 Attr::Table(path) => {
                     table = Some(path);
                 }
@@ -47,7 +51,7 @@ impl HolderAttr {
                 }
             }
         }
-        HolderAttr {
+        Self {
             table,
             field,
             place_holder,
@@ -71,15 +75,15 @@ impl syn::parse::Parse for Attr {
             "table" => {
                 let _eq: syn::Token![=] = input.parse()?;
                 let path = input.parse()?;
-                Ok(Attr::Table(path))
+                Ok(Self::Table(path))
             }
             "field" => {
                 let _eq: syn::Token![=] = input.parse()?;
                 let ident = input.parse()?;
-                Ok(Attr::Field(ident))
+                Ok(Self::Field(ident))
             }
-            "use_place_holder" => Ok(Attr::PlaceHolder),
-            "generate_deserialize" => Ok(Attr::GenerateDeserialize),
+            "use_place_holder" => Ok(Self::PlaceHolder),
+            "generate_deserialize" => Ok(Self::GenerateDeserialize),
             _ => Err(syn::parse::Error::new(
                 ident.span(),
                 "expected `table`, `field`, or `use_place_holder`",

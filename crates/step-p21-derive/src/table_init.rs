@@ -11,9 +11,13 @@ pub fn derive_table_init(ast: &syn::DeriveInput) -> TokenStream2 {
         syn::Data::Struct(st) => match st.fields {
             syn::Fields::Named(_) => entity_impl_table_init(ident, st),
             syn::Fields::Unnamed(_) => tuple_impl_table_init(ident, st),
-            syn::Fields::Unit => panic!("Unit struct is not supported."),
+            syn::Fields::Unit => {
+                abort_call_site!("Unit struct is not supported.")
+            }
         },
-        _ => abort_call_site!("Only struct is supprted currently"),
+        syn::Data::Union(_) | syn::Data::Enum(_) => {
+            abort_call_site!("TableInit only supports structs")
+        }
     }
 }
 

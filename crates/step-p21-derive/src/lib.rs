@@ -16,15 +16,14 @@
 //!
 //! Design
 //! -------
-//! - [step_p11::codegen::rust](../step_p11/codegen/rust/index.html) generates
+//! - [`step_p11::codegen::rust`](../step_p11/codegen/rust/index.html) generates
 //!   Rust code with proc-macros defined in this crate.
-//! - This crate does not depends on step_p11 explicitly.
+//! - This crate does not depend on `step_p11` explicitly.
 
 use proc_macro::TokenStream;
 use proc_macro_error2::{abort_call_site, proc_macro_error};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use std::convert::*;
 
 mod common;
 mod entity;
@@ -34,10 +33,13 @@ mod select;
 mod table_init;
 mod type_decl;
 
-use common::*;
-use field_type::*;
-use holder_attr::*;
-use table_init::*;
+use common::{
+    as_holder_ident, as_holder_path, as_holder_visitor, as_visitor_ident,
+    itertools_crate, serde_crate, step_p21_crate,
+};
+use field_type::FieldType;
+use holder_attr::HolderAttr;
+use table_init::derive_table_init;
 
 /// Derive `TableInit` for tables
 ///
@@ -73,14 +75,16 @@ use table_init::*;
 #[proc_macro_error]
 #[proc_macro_derive(TableInit)]
 pub fn derive_table_init_entry(input: TokenStream) -> TokenStream {
-    derive_table_init(&syn::parse(input).unwrap()).into()
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    derive_table_init(&input).into()
 }
 
 /// Generate `impl Deserialize` for entity structs
 #[proc_macro_error]
 #[proc_macro_derive(Deserialize)]
 pub fn derive_deserialize_entry(input: TokenStream) -> TokenStream {
-    derive_deserialize(&syn::parse(input).unwrap()).into()
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    derive_deserialize(&input).into()
 }
 
 fn derive_deserialize(ast: &syn::DeriveInput) -> TokenStream2 {
@@ -88,7 +92,9 @@ fn derive_deserialize(ast: &syn::DeriveInput) -> TokenStream2 {
     match &ast.data {
         syn::Data::Struct(st) => entity::derive_deserialize(ident, st),
         syn::Data::Enum(e) => select::derive_deserialize(ident, e),
-        _ => abort_call_site!("Only struct is supprted currently"),
+        syn::Data::Union(_) => {
+            abort_call_site!("only structs and enums are supported")
+        }
     }
 }
 
@@ -134,7 +140,8 @@ fn derive_deserialize(ast: &syn::DeriveInput) -> TokenStream2 {
 #[proc_macro_error]
 #[proc_macro_derive(Holder, attributes(holder))]
 pub fn derive_holder_entry(input: TokenStream) -> TokenStream {
-    derive_holder(&syn::parse(input).unwrap()).into()
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    derive_holder(&input).into()
 }
 
 fn derive_holder(ast: &syn::DeriveInput) -> TokenStream2 {
@@ -151,7 +158,9 @@ fn derive_holder(ast: &syn::DeriveInput) -> TokenStream2 {
             }
         },
         syn::Data::Enum(e) => select::derive_holder(ident, e, &attr),
-        _ => abort_call_site!("Only struct is supprted currently"),
+        syn::Data::Union(_) => {
+            abort_call_site!("only structs and enums are supported")
+        }
     }
 }
 
@@ -161,7 +170,8 @@ fn derive_holder(ast: &syn::DeriveInput) -> TokenStream2 {
 #[proc_macro_error]
 #[proc_macro]
 pub fn as_holder(input: TokenStream) -> TokenStream {
-    let path = as_holder_path(&syn::parse(input).unwrap());
+    let input = syn::parse_macro_input!(input as syn::Type);
+    let path = as_holder_path(&input);
     let ts = quote! { #path };
     ts.into()
 }

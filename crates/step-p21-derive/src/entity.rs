@@ -1,9 +1,12 @@
 use inflector::Inflector;
-use proc_macro_error2::OptionExt;
+use proc_macro_error2::{OptionExt, ResultExt};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 
-use super::*;
+use super::{
+    FieldType, HolderAttr, abort_call_site, as_holder_ident, as_holder_visitor,
+    as_visitor_ident, serde_crate, step_p21_crate,
+};
 
 pub fn derive_deserialize(
     ident: &syn::Ident,
@@ -73,7 +76,11 @@ impl FieldEntries {
                 field.ident.as_ref().expect_or_abort("st is not struct");
             attributes.push(ident.clone());
 
-            let ft: FieldType = field.ty.clone().try_into().unwrap();
+            let ft: FieldType = field
+                .ty
+                .clone()
+                .try_into()
+                .expect_or_abort("unsupported entity field type");
 
             let HolderAttr { place_holder, .. } =
                 HolderAttr::parse(&field.attrs);
@@ -103,7 +110,7 @@ impl FieldEntries {
                 holder_types.push(ft.into());
             }
         }
-        FieldEntries {
+        Self {
             attributes,
             holder_types,
             into_owned,
