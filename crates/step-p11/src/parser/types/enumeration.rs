@@ -1,15 +1,29 @@
-use super::super::{combinator::*, identifier::*};
-use crate::ast::*;
+use super::super::{
+    combinator::{
+        EsprParser, ParseResult, char, comma_separated, opt, tag, tuple,
+    },
+    identifier::enumeration_id,
+};
+use crate::ast::{Extensibility, Type};
 
-/// 211 enumeration_items = `(` [enumeration_id] { `,` [enumeration_id] } `)` .
+/// 211 `enumeration_items` = `(` [`enumeration_id`] { `,` [`enumeration_id`] }
+/// `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn enumeration_items(input: &str) -> ParseResult<'_, Vec<String>> {
     tuple((char('('), comma_separated(enumeration_id), char(')')))
         .map(|(_open, enums, _close)| enums)
         .parse(input)
 }
 
-/// 213 enumeration_type = \[ EXTENSIBLE \] ENUMERATION \[ ( OF
-/// [enumeration_items] ) | enumeration_extension \] .
+/// 213 `enumeration_type` = \[ EXTENSIBLE \] ENUMERATION \[ ( OF
+/// [`enumeration_items`] ) | `enumeration_extension` \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn enumeration_type(input: &str) -> ParseResult<'_, Type> {
     // FIXME enumeration_extension
     tuple((

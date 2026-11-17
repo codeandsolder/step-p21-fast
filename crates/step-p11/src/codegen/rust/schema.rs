@@ -1,9 +1,9 @@
-use crate::ir::*;
+use crate::ir::{IR, Schema, TypeDecl};
 
 use check_keyword::CheckKeyword;
 use inflector::Inflector;
 use proc_macro2::TokenStream;
-use quote::*;
+use quote::{format_ident, quote};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CratePrefix {
@@ -12,15 +12,17 @@ pub enum CratePrefix {
 }
 
 impl CratePrefix {
+    #[must_use]
     pub fn as_path(&self) -> syn::Path {
         match self {
-            CratePrefix::Internal => syn::parse_str("crate").unwrap(),
-            CratePrefix::External => syn::parse_str("::step_p21").unwrap(),
+            Self::Internal => syn::parse_str("crate").unwrap(),
+            Self::External => syn::parse_str("::step_p21").unwrap(),
         }
     }
 }
 
 impl IR {
+    #[must_use]
     pub fn to_token_stream(&self, prefix: CratePrefix) -> TokenStream {
         let schemas: Vec<_> = self
             .schemas
@@ -32,6 +34,7 @@ impl IR {
 }
 
 impl Schema {
+    #[must_use]
     pub fn to_token_stream(&self, prefix: CratePrefix) -> TokenStream {
         let name = format_ident!("{}", self.name);
         let types = &self.types;

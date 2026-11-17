@@ -10,21 +10,37 @@ pub use generalized::*;
 pub use select::*;
 pub use simple::*;
 
-use super::{combinator::*, entity::*, identifier::*};
-use crate::ast::*;
+use super::{
+    combinator::{EsprParser, ParseResult, alt, char, opt, tag, tuple},
+    entity::where_clause,
+    identifier::{type_id, type_ref},
+};
+use crate::ast::{Type, TypeDecl};
 
-/// 198 constructed_types = [enumeration_type] | [select_type] .
+/// 198 `constructed_types` = [`enumeration_type`] | [`select_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn constructed_types(input: &str) -> ParseResult<'_, Type> {
     alt((enumeration_type, select_type)).parse(input)
 }
 
-/// 332 underlying_type = [concrete_types] | [constructed_types] .
+/// 332 `underlying_type` = [`concrete_types`] | [`constructed_types`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn underlying_type(input: &str) -> ParseResult<'_, Type> {
     alt((concrete_types, constructed_types)).parse(input)
 }
 
-/// 327 type_decl = TYPE [type_id] `=` [underlying_type] `;` \[ [where_clause]
-/// \] END_TYPE `;` .
+/// 327 `type_decl` = TYPE [`type_id`] `=` [`underlying_type`] `;` \[
+/// [`where_clause`] \] `END_TYPE` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn type_decl(input: &str) -> ParseResult<'_, TypeDecl> {
     tuple((
         tag("TYPE"),
@@ -73,7 +89,7 @@ mod tests {
             super::TypeDecl {
                 type_id: "my_type".to_string(),
                 underlying_type: super::Type::Simple(
-                    super::SimpleType::String_ { width_spec: None }
+                    crate::ast::SimpleType::String_ { width_spec: None }
                 ),
                 where_clause: None,
             }

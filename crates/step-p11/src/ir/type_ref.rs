@@ -1,4 +1,8 @@
-use super::{namespace::*, scope::*, *};
+use super::{
+    Constraints, Legalize, SemanticError,
+    namespace::{Named, Namespace},
+    scope::{Path, Scope, ScopeType},
+};
 use crate::ast;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -13,7 +17,7 @@ impl Legalize for SimpleType {
         _scope: &Scope,
         input: &Self::Input,
     ) -> Result<Self, SemanticError> {
-        Ok(SimpleType(*input))
+        Ok(Self(*input))
     }
 }
 
@@ -30,7 +34,7 @@ impl Legalize for Bound {
         _input: &Self::Input,
     ) -> Result<Self, SemanticError> {
         // FIXME
-        Ok(Bound {})
+        Ok(Self {})
     }
 }
 
@@ -65,11 +69,11 @@ pub enum TypeRef {
 
     /* Aggregated */
     Set {
-        base: Box<TypeRef>,
+        base: Box<Self>,
         bound: Option<Bound>,
     },
     List {
-        base: Box<TypeRef>,
+        base: Box<Self>,
         bound: Option<Bound>,
         unique: bool,
     },
@@ -80,17 +84,22 @@ impl TypeRef {
     /// - a simple type,
     /// - a named type whose underlying type is simple, or,
     /// - a set or list of a type `x` such that `x.is_simple() == true`.
+    #[must_use]
     pub fn is_simple(&self) -> bool {
         match self {
-            TypeRef::SimpleType(..) => true,
-            TypeRef::Named { is_simple, .. } => *is_simple,
-            TypeRef::Set { base, .. } | TypeRef::List { base, .. } => {
+            Self::SimpleType(..) => true,
+            Self::Named { is_simple, .. } => *is_simple,
+            Self::Set { base, .. } | Self::List { base, .. } => {
                 base.is_simple()
             }
             _ => false,
         }
     }
 
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn from_path(
         ns: &Namespace,
         ss: &Constraints,
@@ -99,7 +108,7 @@ impl TypeRef {
         match path.ty {
             ScopeType::Entity => {
                 let is_supertype = ss.is_supertype(path);
-                Ok(TypeRef::Entity {
+                Ok(Self::Entity {
                     name: path.name.clone(),
                     scope: path.scope.clone(),
                     is_supertype,
@@ -149,7 +158,7 @@ impl TypeRef {
                     },
                     Named::Entity(_) => false,
                 };
-                Ok(TypeRef::Named {
+                Ok(Self::Named {
                     scope: path.scope.clone(),
                     name: path.name.clone(),
                     is_simple,
@@ -172,7 +181,7 @@ impl Legalize for TypeRef {
         scope: &Scope,
         ty: &ast::Type,
     ) -> Result<Self, SemanticError> {
-        use ast::Type::*;
+        use ast::Type::{List, Named, Set, Simple};
         Ok(match ty {
             Simple(ty) => Self::SimpleType(SimpleType(*ty)),
             Named(name) => {
@@ -180,7 +189,7 @@ impl Legalize for TypeRef {
                 Self::from_path(ns, ss, &path)?
             }
             Set { base, bound } => {
-                let base = TypeRef::legalize(ns, ss, scope, base.as_ref())?;
+                let base = Self::legalize(ns, ss, scope, base.as_ref())?;
                 let bound = if let Some(bound) = bound {
                     Some(Legalize::legalize(ns, ss, scope, bound)?)
                 } else {
@@ -196,7 +205,7 @@ impl Legalize for TypeRef {
                 bound,
                 unique,
             } => {
-                let base = TypeRef::legalize(ns, ss, scope, base.as_ref())?;
+                let base = Self::legalize(ns, ss, scope, base.as_ref())?;
                 let bound = if let Some(bound) = bound {
                     Some(Legalize::legalize(ns, ss, scope, bound)?)
                 } else {

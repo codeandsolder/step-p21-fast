@@ -9,17 +9,17 @@ use crate::parser::*;
 pub enum Expression {
     Unary {
         op: UnaryOperator,
-        arg: Box<Expression>,
+        arg: Box<Self>,
     },
     Binary {
         op: BinaryOperator,
-        arg1: Box<Expression>,
-        arg2: Box<Expression>,
+        arg1: Box<Self>,
+        arg2: Box<Self>,
     },
     Relation {
         op: RelationOperator,
-        lhs: Box<Expression>,
-        rhs: Box<Expression>,
+        lhs: Box<Self>,
+        rhs: Box<Self>,
     },
     Literal(Literal),
     QualifiableFactor {
@@ -28,14 +28,14 @@ pub enum Expression {
     },
     EntityConstructor {
         name: String,
-        values: Vec<Expression>,
+        values: Vec<Self>,
     },
     Interval {
         op_low: IntervalOperator,
         op_high: IntervalOperator,
-        high: Box<Expression>,
-        low: Box<Expression>,
-        item: Box<Expression>,
+        high: Box<Self>,
+        low: Box<Self>,
+        item: Box<Self>,
     },
     EnumerationReference {
         ty: Option<String>,
@@ -46,13 +46,14 @@ pub enum Expression {
     },
     Query {
         variable: String,
-        source: Box<Expression>,
-        expr: Box<Expression>,
+        source: Box<Self>,
+        expr: Box<Self>,
     },
 }
 
 macro_rules! impl_relation_op_expression {
     ($f:ident, $op:path) => {
+        #[must_use]
         pub fn $f(self, other: Self) -> Self {
             Expression::Relation {
                 op: $op,
@@ -65,6 +66,7 @@ macro_rules! impl_relation_op_expression {
 
 macro_rules! impl_binary_op_expression {
     ($f:ident, $op:path) => {
+        #[must_use]
         pub fn $f(self, other: Self) -> Self {
             Expression::Binary {
                 op: $op,
@@ -99,21 +101,24 @@ impl Expression {
     impl_binary_op_expression!(xor, BinaryOperator::Xor);
 
     /// `SELF` constant
+    #[must_use]
     pub fn self_() -> Self {
         Self::self_qualified(Vec::new())
     }
 
     /// `SELF` constant with qualifiers
+    #[must_use]
     pub fn self_qualified(qualifiers: Vec<Qualifier>) -> Self {
-        Expression::QualifiableFactor {
+        Self::QualifiableFactor {
             factor: QualifiableFactor::BuiltInConstant(BuiltInConstant::Self_),
             qualifiers,
         }
     }
 
     /// `?` constant
+    #[must_use]
     pub fn indeterminate() -> Self {
-        Expression::QualifiableFactor {
+        Self::QualifiableFactor {
             factor: QualifiableFactor::BuiltInConstant(
                 BuiltInConstant::Indeterminate,
             ),
@@ -122,8 +127,9 @@ impl Expression {
     }
 
     /// Real value literal
+    #[must_use]
     pub fn real(value: f64) -> Self {
-        Expression::Literal(Literal::Real(value))
+        Self::Literal(Literal::Real(value))
     }
 }
 
@@ -149,11 +155,11 @@ impl_binary_op_expression!(mul, std::ops::Mul, BinaryOperator::Mul);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum QualifiableFactor {
-    /// [attribute_ref], [general_ref], [population], or [constant_ref]
+    /// [`attribute_ref`], [`general_ref`], [population], or [`constant_ref`]
     Reference(String),
-    /// [built_in_constant]
+    /// [`built_in_constant`]
     BuiltInConstant(BuiltInConstant),
-    /// [function_call]
+    /// [`function_call`]
     FunctionCall {
         name: FunctionCallName,
         args: Vec<Expression>,
@@ -230,7 +236,7 @@ pub enum BuiltInConstant {
     Indeterminate,
 }
 
-/// Relation operators parsed by [rel_op] and [rel_op_extended]
+/// Relation operators parsed by [`rel_op`] and [`rel_op_extended`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelationOperator {
     /// `=`
@@ -257,7 +263,7 @@ pub enum RelationOperator {
     Like,
 }
 
-/// Unary operators parsed by [unary_op]
+/// Unary operators parsed by [`unary_op`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
     /// `+`
@@ -268,8 +274,8 @@ pub enum UnaryOperator {
     Not,
 }
 
-/// Binary operators parsed by [add_like_op], [multiplication_like_op], and
-/// [power_op]
+/// Binary operators parsed by [`add_like_op`], [`multiplication_like_op`], and
+/// [`power_op`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     /* Mul-like */

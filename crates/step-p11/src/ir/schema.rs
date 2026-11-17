@@ -1,4 +1,10 @@
-use super::{entity::*, namespace::*, scope::*, type_decl::*, *};
+use super::{
+    Constraints, Legalize, SemanticError,
+    entity::Entity,
+    namespace::Namespace,
+    scope::{Scope, ScopeType},
+    type_decl::TypeDecl,
+};
 use crate::ast;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,7 +35,7 @@ impl Legalize for Schema {
             .iter()
             .map(|entity| TypeDecl::legalize(ns, ss, &here, entity))
             .collect::<Result<Vec<TypeDecl>, _>>()?;
-        Ok(Schema {
+        Ok(Self {
             name,
             entities,
             types,
@@ -40,6 +46,7 @@ impl Legalize for Schema {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::SyntaxTree;
 
     #[test]
     fn legalize() {

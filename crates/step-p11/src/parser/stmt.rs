@@ -1,9 +1,27 @@
-use super::{combinator::*, expression::*, identifier::*, types::*};
-use crate::ast::*;
+use super::{
+    combinator::{
+        EsprParser, ParseResult, alt, char, comma_separated, many0, many1, opt,
+        tag, tuple,
+    },
+    expression::{
+        actual_parameter_list, expression, logical_expression,
+        numeric_expression, qualifier,
+    },
+    identifier::{general_ref, procedure_ref, variable_id},
+    types::{bound_1, bound_2},
+};
+use crate::ast::{
+    Expression, ProcedureCallName, RepeatControl, RepeatIncrement, Statement,
+};
 
-/// 309 stmt = [alias_stmt] | [assignment_stmt] | [case_stmt] | [compound_stmt]
-/// | [escape_stmt] | [if_stmt] | [null_stmt] | [procedure_call_stmt] |
-/// [repeat_stmt] | [return_stmt] | [skip_stmt] .
+/// 309 stmt = [`alias_stmt`] | [`assignment_stmt`] | [`case_stmt`] |
+/// [`compound_stmt`] | [`escape_stmt`] | [`if_stmt`] | [`null_stmt`] |
+/// [`procedure_call_stmt`] | [`repeat_stmt`] | [`return_stmt`] | [`skip_stmt`]
+/// .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn stmt(input: &str) -> ParseResult<'_, Statement> {
     alt((
         alias_stmt,
@@ -21,8 +39,12 @@ pub fn stmt(input: &str) -> ParseResult<'_, Statement> {
     .parse(input)
 }
 
-/// 174 alias_stmt = ALIAS [variable_id] FOR [general_ref] { [qualifier] } `;`
-/// [stmt] { [stmt] } END_ALIAS `;` .
+/// 174 `alias_stmt` = ALIAS [`variable_id`] FOR [`general_ref`] { [qualifier] }
+/// `;` [stmt] { [stmt] } `END_ALIAS` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn alias_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((
         tag("ALIAS"),
@@ -58,7 +80,12 @@ pub fn alias_stmt(input: &str) -> ParseResult<'_, Statement> {
     .parse(input)
 }
 
-/// 176 assignment_stmt = [general_ref] { [qualifier] } `:=` [expression] `;` .
+/// 176 `assignment_stmt` = [`general_ref`] { [qualifier] } `:=` [expression]
+/// `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn assignment_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((
         general_ref,
@@ -77,8 +104,12 @@ pub fn assignment_stmt(input: &str) -> ParseResult<'_, Statement> {
     .parse(input)
 }
 
-/// 191 case_stmt = CASE [selector] OF { [case_action] } \[ OTHERWISE `:` [stmt]
-/// \] END_CASE `;` .
+/// 191 `case_stmt` = CASE [selector] OF { [`case_action`] } \[ OTHERWISE `:`
+/// [stmt] \] `END_CASE` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn case_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((
         tag("CASE"),
@@ -103,11 +134,19 @@ pub fn case_stmt(input: &str) -> ParseResult<'_, Statement> {
 }
 
 /// 299 selector = [expression] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn selector(input: &str) -> ParseResult<'_, Expression> {
     expression(input)
 }
 
-/// 189 case_action = [case_label] { `,` [case_label] } `:` [stmt] .
+/// 189 `case_action` = [`case_label`] { `,` [`case_label`] } `:` [stmt] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn case_action(
     input: &str,
 ) -> ParseResult<'_, (Vec<Expression>, Statement)> {
@@ -116,12 +155,20 @@ pub fn case_action(
         .parse(input)
 }
 
-/// 190 case_label = [expression] .
+/// 190 `case_label` = [expression] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn case_label(input: &str) -> ParseResult<'_, Expression> {
     expression(input)
 }
 
-/// 192 compound_stmt = BEGIN [stmt] { [stmt] } END `;` .
+/// 192 `compound_stmt` = BEGIN [stmt] { [stmt] } END `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn compound_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((tag("BEGIN"), many1(stmt), tag("END"), char(';')))
         .map(
@@ -132,15 +179,23 @@ pub fn compound_stmt(input: &str) -> ParseResult<'_, Statement> {
         .parse(input)
 }
 
-/// 214 escape_stmt = ESCAPE `;` .
+/// 214 `escape_stmt` = ESCAPE `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn escape_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((tag("ESCAPE"), char(';')))
         .map(|(_skip, _semicolon)| Statement::Escape)
         .parse(input)
 }
 
-/// 233 if_stmt = IF [logical_expression] THEN [stmt] { [stmt] } \[ ELSE [stmt]
-/// { [stmt] } \] END_IF `;` .
+/// 233 `if_stmt` = IF [`logical_expression`] THEN [stmt] { [stmt] } \[ ELSE
+/// [stmt] { [stmt] } \] `END_IF` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn if_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((
         tag("IF"),
@@ -169,13 +224,21 @@ pub fn if_stmt(input: &str) -> ParseResult<'_, Statement> {
     .parse(input)
 }
 
-/// 260 null_stmt = `;` .
+/// 260 `null_stmt` = `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn null_stmt(input: &str) -> ParseResult<'_, Statement> {
     char(';').map(|_c| Statement::Null).parse(input)
 }
 
-/// 270 procedure_call_stmt = ( [built_in_procedure] | [procedure_ref] ) \[
-/// [actual_parameter_list] \] `;` .
+/// 270 `procedure_call_stmt` = ( [`built_in_procedure`] | [`procedure_ref`] )
+/// \[ [`actual_parameter_list`] \] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn procedure_call_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((
         alt((
@@ -194,7 +257,11 @@ pub fn procedure_call_stmt(input: &str) -> ParseResult<'_, Statement> {
     .parse(input)
 }
 
-/// 188 built_in_procedure = INSERT | REMOVE .
+/// 188 `built_in_procedure` = INSERT | REMOVE .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn built_in_procedure(input: &str) -> ParseResult<'_, ProcedureCallName> {
     alt((
         tag("INSERT").map(|_| ProcedureCallName::Insert),
@@ -203,8 +270,12 @@ pub fn built_in_procedure(input: &str) -> ParseResult<'_, ProcedureCallName> {
     .parse(input)
 }
 
-/// 286 repeat_stmt = REPEAT [repeat_control] `;` [stmt] { [stmt] } END_REPEAT
-/// `;` .
+/// 286 `repeat_stmt` = REPEAT [`repeat_control`] `;` [stmt] { [stmt] }
+/// `END_REPEAT` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn repeat_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((
         tag("REPEAT"),
@@ -225,8 +296,12 @@ pub fn repeat_stmt(input: &str) -> ParseResult<'_, Statement> {
     .parse(input)
 }
 
-/// 285 repeat_control = \[ [increment_control] \] \[ [while_control] \] \[
-/// [until_control] \] .
+/// 285 `repeat_control` = \[ [`increment_control`] \] \[ [`while_control`] \]
+/// \[ [`until_control`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn repeat_control(input: &str) -> ParseResult<'_, RepeatControl> {
     tuple((
         opt(increment_control),
@@ -241,8 +316,12 @@ pub fn repeat_control(input: &str) -> ParseResult<'_, RepeatControl> {
     .parse(input)
 }
 
-/// 235 increment_control = [variable_id] `:=` [bound_1] TO [bound_2] \[ BY
-/// [increment] \] .
+/// 235 `increment_control` = [`variable_id`] `:=` [`bound_1`] TO [`bound_2`] \[
+/// BY [increment] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn increment_control(input: &str) -> ParseResult<'_, RepeatIncrement> {
     tuple((
         variable_id,
@@ -263,26 +342,42 @@ pub fn increment_control(input: &str) -> ParseResult<'_, RepeatIncrement> {
     .parse(input)
 }
 
-/// 234 increment = [numeric_expression] .
+/// 234 increment = [`numeric_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn increment(input: &str) -> ParseResult<'_, Expression> {
     numeric_expression(input)
 }
 
-/// 339 while_control = WHILE [logical_expression] .
+/// 339 `while_control` = WHILE [`logical_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn while_control(input: &str) -> ParseResult<'_, Expression> {
     tuple((tag("WHILE"), logical_expression))
         .map(|(_where, expr)| expr)
         .parse(input)
 }
 
-/// 335 until_control = UNTIL [logical_expression] .
+/// 335 `until_control` = UNTIL [`logical_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn until_control(input: &str) -> ParseResult<'_, Expression> {
     tuple((tag("UNTIL"), logical_expression))
         .map(|(_where, expr)| expr)
         .parse(input)
 }
 
-/// 290 return_stmt = RETURN \[ `(` [expression] `)` \] `;` .
+/// 290 `return_stmt` = RETURN \[ `(` [expression] `)` \] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn return_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((
         tag("RETURN"),
@@ -294,7 +389,11 @@ pub fn return_stmt(input: &str) -> ParseResult<'_, Statement> {
     .parse(input)
 }
 
-/// 308 skip_stmt = SKIP `;` .
+/// 308 `skip_stmt` = SKIP `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn skip_stmt(input: &str) -> ParseResult<'_, Statement> {
     tuple((tag("SKIP"), char(';')))
         .map(|(_skip, _semicolon)| Statement::Skip)

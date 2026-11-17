@@ -1,4 +1,7 @@
-use super::{SemanticError, scope::*};
+use super::{
+    SemanticError,
+    scope::{Path, Scope, ScopeType},
+};
 use crate::ast::{self, SyntaxTree};
 
 use std::collections::HashMap;
@@ -41,6 +44,7 @@ impl<'st> std::ops::Index<&Scope> for Namespace<'st> {
 }
 
 impl<'st> Namespace<'st> {
+    #[must_use]
     pub fn new(st: &'st SyntaxTree) -> Self {
         let mut names = HashMap::new();
         let mut ast = Vec::new();
@@ -73,11 +77,13 @@ impl<'st> Namespace<'st> {
         Namespace { names, ast }
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.ast.is_empty()
     }
 
     /// Size of indexed AST
+    #[must_use]
     pub fn len(&self) -> usize {
         self.ast.len()
     }
@@ -87,6 +93,10 @@ impl<'st> Namespace<'st> {
     /// Error
     /// ------
     /// - If no corresponding definition found.
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn resolve(
         &self,
         scope: &Scope,
@@ -114,6 +124,10 @@ impl<'st> Namespace<'st> {
     /// Error
     /// ------
     /// - Input path is invalid, i.e. No item is specified by the path.
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn get(
         &self,
         path: &Path,

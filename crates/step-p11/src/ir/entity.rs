@@ -1,9 +1,14 @@
-use super::{namespace::*, scope::*, type_ref::*, *};
+use super::{
+    Constraints, Legalize, SemanticError,
+    namespace::Namespace,
+    scope::{Path, Scope},
+    type_ref::TypeRef,
+};
 use crate::ast;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entity {
-    /// Name of entity in snake_case
+    /// Name of entity in `snake_case`
     pub name: String,
     pub attributes: Vec<EntityAttribute>,
 
@@ -45,7 +50,7 @@ impl Legalize for EntityAttribute {
             ast::AttributeDecl::Reference(name) => name.clone(),
             _ => unimplemented!(),
         };
-        Ok(EntityAttribute {
+        Ok(Self {
             name,
             ty,
             optional: attr.optional,
@@ -96,7 +101,7 @@ impl Legalize for Entity {
                 Vec::new()
             };
 
-        Ok(Entity {
+        Ok(Self {
             name,
             attributes,
             constraints,
@@ -108,6 +113,7 @@ impl Legalize for Entity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{ast::SyntaxTree, ir::ScopeType};
 
     #[test]
     fn legalize() {

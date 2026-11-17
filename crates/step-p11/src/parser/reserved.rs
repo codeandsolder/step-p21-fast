@@ -127,6 +127,7 @@ pub const KEYWORDS: &[&str] = &[
     "xor",
 ];
 
+#[must_use]
 pub fn is_reserved(input: &str) -> bool {
     KEYWORDS
         .iter()

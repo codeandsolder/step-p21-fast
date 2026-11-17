@@ -1,6 +1,10 @@
 //! AST of schema declarations
 
-use crate::ast::{algorithm::*, entity::*, types::*};
+use crate::ast::{
+    algorithm::{Constant, Function, InterfaceSpec, Procedure, Rule},
+    entity::{Entity, SubTypeConstraint},
+    types::TypeDecl,
+};
 
 /// Parsed result of EXPRESS's SCHEMA
 #[derive(Debug, Clone, PartialEq)]

@@ -1,10 +1,19 @@
 use super::{
-    super::{combinator::*, identifier::*},
-    aggregate_initializer::*,
-    operator::*,
-    primary::*,
+    super::{
+        combinator::{
+            EsprParser, ParseResult, alt, char, comma_separated, many0, opt,
+            tag, tuple,
+        },
+        identifier::{entity_ref, enumeration_ref, type_ref, variable_id},
+    },
+    aggregate_initializer::aggregate_initializer,
+    operator::{
+        add_like_op, interval_op, multiplication_like_op, power_op,
+        rel_op_extended, unary_op,
+    },
+    primary::primary,
 };
-use crate::ast::*;
+use crate::ast::{BinaryOperator, Expression};
 
 /// Create left-joined tree `1.0 + 2.0 - 3.0` into `(- (+ 1.0 2.0) 3.0)`
 fn create_tree(
@@ -21,21 +30,33 @@ fn create_tree(
     head
 }
 
-/// 305 simple_expression = [term] { [add_like_op] [term] } .
+/// 305 `simple_expression` = [term] { [`add_like_op`] [term] } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn simple_expression(input: &str) -> ParseResult<'_, Expression> {
     tuple((term, many0(tuple((add_like_op, term)))))
         .map(|(head, tails)| create_tree(head, tails))
         .parse(input)
 }
 
-/// 325 term = [factor] { [multiplication_like_op] [factor] } .
+/// 325 term = [factor] { [`multiplication_like_op`] [factor] } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn term(input: &str) -> ParseResult<'_, Expression> {
     tuple((factor, many0(tuple((multiplication_like_op, factor)))))
         .map(|(head, tails)| create_tree(head, tails))
         .parse(input)
 }
 
-/// 217 factor = [simple_factor] \[ `**` [simple_factor] \] .
+/// 217 factor = [`simple_factor`] \[ `**` [`simple_factor`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn factor(input: &str) -> ParseResult<'_, Expression> {
     tuple((simple_factor, opt(tuple((power_op, simple_factor)))))
         .map(|(arg1, opt)| {
@@ -52,12 +73,16 @@ pub fn factor(input: &str) -> ParseResult<'_, Expression> {
         .parse(input)
 }
 
-/// 306 simple_factor = [aggregate_initializer]
-///                   | [entity_constructor]
-///                   | [enumeration_reference]
+/// 306 `simple_factor` = [`aggregate_initializer`]
+///                   | [`entity_constructor`]
+///                   | [`enumeration_reference`]
 ///                   | [interval]
-///                   | [query_expression]
-///                   | ( \[ [unary_op] \] ( `(` [expression] `)` | [primary] ) ) .
+///                   | [`query_expression`]
+///                   | ( \[ [`unary_op`] \] ( `(` [expression] `)` | [primary] ) ) .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn simple_factor(input: &str) -> ParseResult<'_, Expression> {
     let paren_expr =
         tuple((char('('), expression, char(')'))).map(|(_open, e, _close)| e);
@@ -85,8 +110,12 @@ pub fn simple_factor(input: &str) -> ParseResult<'_, Expression> {
     .parse(input)
 }
 
-/// 216 expression = [simple_expression] \[ [rel_op_extended]
-/// [simple_expression] \] .
+/// 216 expression = [`simple_expression`] \[ [`rel_op_extended`]
+/// [`simple_expression`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn expression(input: &str) -> ParseResult<'_, Expression> {
     tuple((
         simple_expression,
@@ -106,7 +135,11 @@ pub fn expression(input: &str) -> ParseResult<'_, Expression> {
     .parse(input)
 }
 
-/// 212 enumeration_reference = \[ [type_ref] `.` \] [enumeration_ref] .
+/// 212 `enumeration_reference` = \[ [`type_ref`] `.` \] [`enumeration_ref`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn enumeration_reference(input: &str) -> ParseResult<'_, Expression> {
     tuple((opt(tuple((type_ref, char('.')))), enumeration_ref))
         .map(|(opt, enum_ref)| Expression::EnumerationReference {
@@ -116,8 +149,12 @@ pub fn enumeration_reference(input: &str) -> ParseResult<'_, Expression> {
         .parse(input)
 }
 
-/// 243 interval = `{` [interval_low] [interval_op] [interval_item]
-/// [interval_op] [interval_high] `}` .
+/// 243 interval = `{` [`interval_low`] [`interval_op`] [`interval_item`]
+/// [`interval_op`] [`interval_high`] `}` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn interval(input: &str) -> ParseResult<'_, Expression> {
     tuple((
         char('{'),
@@ -140,33 +177,57 @@ pub fn interval(input: &str) -> ParseResult<'_, Expression> {
     .parse(input)
 }
 
-/// 244 interval_high = [simple_expression] .
+/// 244 `interval_high` = [`simple_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn interval_high(input: &str) -> ParseResult<'_, Expression> {
     simple_expression(input)
 }
 
-/// 245 interval_item = [simple_expression] .
+/// 245 `interval_item` = [`simple_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn interval_item(input: &str) -> ParseResult<'_, Expression> {
     simple_expression(input)
 }
 
-/// 246 interval_low = [simple_expression] .
+/// 246 `interval_low` = [`simple_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn interval_low(input: &str) -> ParseResult<'_, Expression> {
     simple_expression(input)
 }
 
-/// 170 aggregate_source = [simple_expression] .
+/// 170 `aggregate_source` = [`simple_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn aggregate_source(input: &str) -> ParseResult<'_, Expression> {
     simple_expression(input)
 }
 
-/// 254 logical_expression = [expression] .
+/// 254 `logical_expression` = [expression] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn logical_expression(input: &str) -> ParseResult<'_, Expression> {
     expression(input)
 }
 
-/// 277 query_expression = QUERY `(` [variable_id] `<*` [aggregate_source] `|`
-/// [logical_expression] `)` .
+/// 277 `query_expression` = QUERY `(` [`variable_id`] `<*` [`aggregate_source`]
+/// `|` [`logical_expression`] `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn query_expression(input: &str) -> ParseResult<'_, Expression> {
     tuple((
         tag("QUERY"),
@@ -190,8 +251,12 @@ pub fn query_expression(input: &str) -> ParseResult<'_, Expression> {
     .parse(input)
 }
 
-/// 205 entity_constructor = entity_ref `(` [ [expression] { `,` [expression] }
-/// ] `)` .
+/// 205 `entity_constructor` = `entity_ref` `(` [ [expression] { `,`
+/// [expression] } ] `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn entity_constructor(input: &str) -> ParseResult<'_, Expression> {
     tuple((
         entity_ref,
@@ -211,6 +276,7 @@ pub fn entity_constructor(input: &str) -> ParseResult<'_, Expression> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::{Literal, QualifiableFactor, Qualifier, UnaryOperator};
     use nom::Finish;
 
     #[test]

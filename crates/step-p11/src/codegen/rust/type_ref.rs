@@ -1,12 +1,12 @@
 use inflector::Inflector;
 use proc_macro2::TokenStream;
-use quote::*;
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 
-use crate::ir::*;
+use crate::ir::TypeRef;
 
 impl ToTokens for TypeRef {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        use TypeRef::*;
+        use TypeRef::{Entity, List, Named, Set, SimpleType};
         match self {
             SimpleType(ty) => ty.to_tokens(tokens),
             Named { name, .. } => {

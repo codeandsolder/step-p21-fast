@@ -32,10 +32,10 @@
 //! - Legalize
 //!   - Convert AST to IR (intermediate representation) to ready the following
 //!     code generation
-//!   - [ir] module defines IR structs, and they implements [ir::Legalize] trait
-//!     for legalizing from AST
+//!   - [ir] module defines IR structs, and they implements [`ir::Legalize`]
+//!     trait for legalizing from AST
 //! - Code Generation
-//!   - [codegen::rust] module generates Rust code from IR
+//!   - [`codegen::rust`] module generates Rust code from IR
 //!
 //! Introduction to STEP
 //! ---------------------

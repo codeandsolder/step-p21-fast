@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    Constraints, Legalize, Namespace, Scope, SemanticError, SimpleType, TypeRef,
+};
 use crate::ast;
 
 /// Rename of primitive type,
@@ -42,12 +44,13 @@ pub enum TypeDecl {
 }
 
 impl TypeDecl {
+    #[must_use]
     pub fn id(&self) -> &str {
         match self {
-            TypeDecl::Simple(e) => &e.id,
-            TypeDecl::Rename(e) => &e.id,
-            TypeDecl::Enumeration(e) => &e.id,
-            TypeDecl::Select(e) => &e.id,
+            Self::Simple(e) => &e.id,
+            Self::Rename(e) => &e.id,
+            Self::Enumeration(e) => &e.id,
+            Self::Select(e) => &e.id,
         }
     }
 }
@@ -64,13 +67,13 @@ impl Legalize for TypeDecl {
         use ast::Type;
         let id = type_decl.type_id.clone();
         Ok(match &type_decl.underlying_type {
-            Type::Simple(ty) => TypeDecl::Simple(Simple {
+            Type::Simple(ty) => Self::Simple(Simple {
                 id,
                 ty: SimpleType(*ty),
             }),
             Type::Named(name) => {
                 let (path, _index) = ns.resolve(scope, name)?;
-                TypeDecl::Rename(Rename {
+                Self::Rename(Rename {
                     id,
                     ty: TypeRef::from_path(ns, ss, &path)?,
                 })
@@ -78,7 +81,7 @@ impl Legalize for TypeDecl {
             Type::Enumeration {
                 items,
                 extensibility: _,
-            } => TypeDecl::Enumeration(Enumeration {
+            } => Self::Enumeration(Enumeration {
                 id,
                 items: items.clone(),
             }),
@@ -93,7 +96,7 @@ impl Legalize for TypeDecl {
                         TypeRef::from_path(ns, ss, &path)
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                TypeDecl::Select(Select { id, types })
+                Self::Select(Select { id, types })
             }
             Type::Set { base, bound } => {
                 let base = TypeRef::legalize(ns, ss, scope, base.as_ref())?;
@@ -102,7 +105,7 @@ impl Legalize for TypeDecl {
                 } else {
                     None
                 };
-                TypeDecl::Rename(Rename {
+                Self::Rename(Rename {
                     id,
                     ty: TypeRef::Set {
                         base: Box::new(base),
@@ -121,7 +124,7 @@ impl Legalize for TypeDecl {
                 } else {
                     None
                 };
-                TypeDecl::Rename(Rename {
+                Self::Rename(Rename {
                     id,
                     ty: TypeRef::List {
                         base: Box::new(base),

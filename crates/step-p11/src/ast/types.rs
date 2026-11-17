@@ -1,12 +1,12 @@
 //! AST for type declaration
 
 use crate::{
-    ast::{algorithm::*, expression::*},
+    ast::{algorithm::WhereClause, expression::Expression},
     derive_ast_component,
-    parser::*,
+    parser::simple_types,
 };
 
-/// Type declaration by [type_decl].
+/// Type declaration by [`type_decl`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeDecl {
     pub type_id: String,
@@ -21,20 +21,20 @@ pub enum Type {
     Simple(SimpleType),
     Named(String),
     Set {
-        base: Box<Type>,
+        base: Box<Self>,
         bound: Option<Bound>,
     },
     Bag {
-        base: Box<Type>,
+        base: Box<Self>,
         bound: Option<Bound>,
     },
     List {
-        base: Box<Type>,
+        base: Box<Self>,
         bound: Option<Bound>,
         unique: bool,
     },
     Array {
-        base: Box<Type>,
+        base: Box<Self>,
         bound: Option<Bound>,
         unique: bool,
         optional: bool,
@@ -52,14 +52,14 @@ pub enum Type {
 
     // Parameter Types
     Aggregate {
-        base: Box<Type>,
+        base: Box<Self>,
         label: Option<String>,
     },
     GenericEntity(Option<String>),
     Generic(Option<String>),
 }
 
-/// Primitive types parsed by [simple_types]
+/// Primitive types parsed by [`simple_types`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SimpleType {
     /// 8.1.1 Number data type
@@ -80,7 +80,7 @@ pub enum SimpleType {
 
 derive_ast_component!(SimpleType, simple_types);
 
-/// Output of [width_spec]
+/// Output of [`width_spec`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WidthSpec {
     pub width: usize,
@@ -93,8 +93,8 @@ pub struct Bound {
     pub upper: Expression,
 }
 
-/// `EXTENSIBLE` and `GENERIC_ENTITY` keywords for [select_type] and
-/// [enumeration_type]
+/// `EXTENSIBLE` and `GENERIC_ENTITY` keywords for [`select_type`] and
+/// [`enumeration_type`]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Extensibility {
     /// No `EXTENSIBLE`

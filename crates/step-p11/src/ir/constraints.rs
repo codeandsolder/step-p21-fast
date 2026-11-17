@@ -1,6 +1,6 @@
 //! Partial complex entities described in ISO-10303-11 Annex B
 
-use super::*;
+use super::{Instantiables, Namespace, Path, Scope, SemanticError, SyntaxTree};
 use crate::ast;
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -8,15 +8,16 @@ use std::collections::{HashMap, hash_map::Entry};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConstraintExpr {
     Reference(Path),
-    AndOr(Vec<ConstraintExpr>),
-    And(Vec<ConstraintExpr>),
-    OneOf(Vec<ConstraintExpr>),
+    AndOr(Vec<Self>),
+    And(Vec<Self>),
+    OneOf(Vec<Self>),
 }
 
 impl ConstraintExpr {
     /// Check if `path` occurs in this expression
+    #[must_use]
     pub fn is_in(&self, path: &Path) -> bool {
-        use ConstraintExpr::*;
+        use ConstraintExpr::{And, AndOr, OneOf, Reference};
         match self {
             Reference(p) => p == path,
             AndOr(exprs) | And(exprs) | OneOf(exprs) => {
@@ -25,13 +26,14 @@ impl ConstraintExpr {
         }
     }
 
+    #[must_use]
     pub fn andor(mut self, rhs: Self) -> Self {
         self.andor_mut(rhs);
         self
     }
 
     pub fn andor_mut(&mut self, rhs: Self) {
-        use ConstraintExpr::*;
+        use ConstraintExpr::AndOr;
         match (self, rhs) {
             (AndOr(a), AndOr(mut b)) => {
                 a.append(&mut b);
@@ -56,12 +58,16 @@ impl ConstraintExpr {
         }
     }
 
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn from_ast_expr(
         ns: &Namespace,
         scope: &Scope,
         expr: &ast::SuperTypeExpression,
     ) -> Result<Self, SemanticError> {
-        use ast::SuperTypeExpression::*;
+        use ast::SuperTypeExpression::{And, AndOr, OneOf, Reference};
         Ok(match expr {
             Reference(name) => Self::Reference(ns.resolve(scope, name)?.0),
             AndOr { factors } => Self::AndOr(
@@ -86,6 +92,10 @@ impl ConstraintExpr {
     }
 
     /// Evaluate the expresion into a list of instantiables
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn as_instantiables(
         &self,
         ns: &Namespace,
@@ -108,6 +118,10 @@ pub struct Constraints {
 //
 // - Step a) has been done while namespace creation.
 //
+///
+/// # Errors
+/// Returns a semantic analysis error if types, entities, or constraints cannot
+/// be resolved.
 pub fn gather_constraint_expr(
     ns: &Namespace,
     st: &SyntaxTree,
@@ -233,9 +247,13 @@ pub fn gather_constraint_expr(
 }
 
 impl Constraints {
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn new(ns: &Namespace, st: &SyntaxTree) -> Result<Self, SemanticError> {
         let exprs = gather_constraint_expr(ns, st)?;
-        Ok(Constraints {
+        Ok(Self {
             instantiables: exprs
                 .into_iter()
                 .map(|(path, expr)| Ok((path, expr.as_instantiables(ns)?)))
@@ -243,6 +261,7 @@ impl Constraints {
         })
     }
 
+    #[must_use]
     pub fn is_supertype(&self, path: &Path) -> bool {
         self.instantiables.contains_key(path)
     }

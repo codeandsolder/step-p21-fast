@@ -1,11 +1,27 @@
 use super::{
-    super::{combinator::*, identifier::*, literal::*},
-    aggregate_initializer::*,
-    simple::*,
+    super::{
+        combinator::{
+            EsprParser, ParseResult, alt, char, comma_separated, many0, opt,
+            tag, tuple, value,
+        },
+        identifier::{
+            attribute_ref, constant_ref, entity_ref, function_ref, general_ref,
+        },
+        literal::literal,
+    },
+    aggregate_initializer::numeric_expression,
+    simple::expression,
 };
-use crate::ast::*;
+use crate::ast::{
+    BuiltInConstant, BuiltInFunction, Expression, FunctionCallName,
+    QualifiableFactor, Qualifier,
+};
 
-/// 269 primary = [literal] | ( [qualifiable_factor] { [qualifier] } ) .
+/// 269 primary = [literal] | ( [`qualifiable_factor`] { [qualifier] } ) .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn primary(input: &str) -> ParseResult<'_, Expression> {
     alt((
         literal.map(Expression::Literal),
@@ -19,8 +35,12 @@ pub fn primary(input: &str) -> ParseResult<'_, Expression> {
     .parse(input)
 }
 
-/// 274 qualifiable_factor = [attribute_ref] | [constant_factor] |
-/// [function_call] | [general_ref] | [population] .
+/// 274 `qualifiable_factor` = [`attribute_ref`] | [`constant_factor`] |
+/// [`function_call`] | [`general_ref`] | [population] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn qualifiable_factor(input: &str) -> ParseResult<'_, QualifiableFactor> {
     alt((
         function_call,
@@ -31,8 +51,8 @@ pub fn qualifiable_factor(input: &str) -> ParseResult<'_, QualifiableFactor> {
     .parse(input)
 }
 
-/// 999 function_call = ( [built_in_function] | [function_ref] )
-/// [actual_parameter_list] .
+/// 999 `function_call` = ( [`built_in_function`] | [`function_ref`] )
+/// [`actual_parameter_list`] .
 ///
 /// Different from official definition
 ///
@@ -42,6 +62,10 @@ pub fn qualifiable_factor(input: &str) -> ParseResult<'_, QualifiableFactor> {
 ///
 /// This function always requires `actual_parameter_list` in order to identify
 /// from other reference types.
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn function_call(input: &str) -> ParseResult<'_, QualifiableFactor> {
     let function_name = alt((
         built_in_function.map(FunctionCallName::BuiltInFunction),
@@ -52,7 +76,11 @@ pub fn function_call(input: &str) -> ParseResult<'_, QualifiableFactor> {
         .parse(input)
 }
 
-/// 167 actual_parameter_list = `(` [parameter] { `,` [parameter] } `)` .
+/// 167 `actual_parameter_list` = `(` [parameter] { `,` [parameter] } `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn actual_parameter_list(input: &str) -> ParseResult<'_, Vec<Expression>> {
     tuple((
         char('('),
@@ -64,11 +92,15 @@ pub fn actual_parameter_list(input: &str) -> ParseResult<'_, Vec<Expression>> {
 }
 
 /// 264 parameter = [expression] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn parameter(input: &str) -> ParseResult<'_, Expression> {
     expression(input)
 }
 
-/// 187 built_in_function = ABS
+/// 187 `built_in_function` = ABS
 ///                       | ACOS
 ///                       | ASIN
 ///                       | ATAN
@@ -95,8 +127,12 @@ pub fn parameter(input: &str) -> ParseResult<'_, Expression> {
 ///                       | TYPEOF
 ///                       | USEDIN
 ///                       | VALUE
-///                       | VALUE_IN
-///                       | VALUE_UNIQUE .
+///                       | `VALUE_IN`
+///                       | `VALUE_UNIQUE` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn built_in_function(input: &str) -> ParseResult<'_, BuiltInFunction> {
     // alt impl is up to 11-element tuple. In reverse order to match longer case
     // first.
@@ -140,12 +176,20 @@ pub fn built_in_function(input: &str) -> ParseResult<'_, BuiltInFunction> {
     .parse(input)
 }
 
-/// 267 population = entity_ref .
+/// 267 population = `entity_ref` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn population(input: &str) -> ParseResult<'_, String> {
     entity_ref(input)
 }
 
-/// 196 constant_factor = [built_in_constant] | [constant_ref] .
+/// 196 `constant_factor` = [`built_in_constant`] | [`constant_ref`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn constant_factor(input: &str) -> ParseResult<'_, QualifiableFactor> {
     alt((
         built_in_constant.map(QualifiableFactor::BuiltInConstant),
@@ -154,8 +198,12 @@ pub fn constant_factor(input: &str) -> ParseResult<'_, QualifiableFactor> {
     .parse(input)
 }
 
-/// 276 qualifier = [attribute_qualifier] | [group_qualifier] |
-/// [index_qualifier] .
+/// 276 qualifier = [`attribute_qualifier`] | [`group_qualifier`] |
+/// [`index_qualifier`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn qualifier(input: &str) -> ParseResult<'_, Qualifier> {
     alt((
         attribute_qualifier.map(Qualifier::Attribute),
@@ -165,21 +213,33 @@ pub fn qualifier(input: &str) -> ParseResult<'_, Qualifier> {
     .parse(input)
 }
 
-/// 179 attribute_qualifier = `.` [attribute_ref] .
+/// 179 `attribute_qualifier` = `.` [`attribute_ref`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn attribute_qualifier(input: &str) -> ParseResult<'_, String> {
     tuple((char('.'), attribute_ref))
         .map(|(_dot, id)| id)
         .parse(input)
 }
 
-/// 232 group_qualifier = `\` [entity_ref] .
+/// 232 `group_qualifier` = `\` [`entity_ref`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn group_qualifier(input: &str) -> ParseResult<'_, String> {
     tuple((char('\\'), entity_ref))
         .map(|(_dot, id)| id)
         .parse(input)
 }
 
-/// 239 index_qualifier = `[` [index_1] [ `:` [index_2] ] `]` .
+/// 239 `index_qualifier` = `[` [`index_1`] [ `:` [`index_2`] ] `]` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn index_qualifier(input: &str) -> ParseResult<'_, Qualifier> {
     tuple((
         char('['),
@@ -197,22 +257,38 @@ pub fn index_qualifier(input: &str) -> ParseResult<'_, Qualifier> {
     .parse(input)
 }
 
-/// 236 index = [numeric_expression] .
+/// 236 index = [`numeric_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn index(input: &str) -> ParseResult<'_, Expression> {
     numeric_expression(input)
 }
 
-/// 237 index_1 = [index] .
+/// 237 `index_1` = [index] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn index_1(input: &str) -> ParseResult<'_, Expression> {
     index(input)
 }
 
-/// 238 index_2 = [index] .
+/// 238 `index_2` = [index] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn index_2(input: &str) -> ParseResult<'_, Expression> {
     index(input)
 }
 
-/// 186 built_in_constant = `CONST_E` | `PI` | `SELF` | `?` .
+/// 186 `built_in_constant` = `CONST_E` | `PI` | `SELF` | `?` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn built_in_constant(input: &str) -> ParseResult<'_, BuiltInConstant> {
     alt((
         value(BuiltInConstant::Napier, tag("CONST_E")),

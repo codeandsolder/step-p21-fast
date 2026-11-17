@@ -1,15 +1,31 @@
-use super::{combinator::*, identifier::*};
-use crate::ast::*;
+use super::{
+    combinator::{
+        EsprParser, ParseResult, alt, char, comma_separated, many0, many1, opt,
+        tag, tuple,
+    },
+    identifier::{entity_ref, subtype_constraint_id},
+};
+use crate::ast::{
+    Constraint, SubTypeConstraint, SubTypeDecl, SuperTypeExpression,
+};
 
-/// 164 abstract_entity_declaration = ABSTRACT .
+/// 164 `abstract_entity_declaration` = ABSTRACT .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn abstract_entity_declaration(input: &str) -> ParseResult<'_, Constraint> {
     tag("ABSTRACT")
         .map(|_| Constraint::AbstractEntity)
         .parse(input)
 }
 
-/// 166 abstract_supertype_declaration = ABSTRACT SUPERTYPE \[
-/// [subtype_constraint] \] .
+/// 166 `abstract_supertype_declaration` = ABSTRACT SUPERTYPE \[
+/// [`subtype_constraint`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn abstract_supertype_declaration(
     input: &str,
 ) -> ParseResult<'_, Constraint> {
@@ -20,15 +36,24 @@ pub fn abstract_supertype_declaration(
         .parse(input)
 }
 
-/// 312 subsuper = \[ [supertype_constraint] \] \[ [subtype_declaration] \] .
+/// 312 subsuper = \[ [`supertype_constraint`] \] \[ [`subtype_declaration`] \]
+/// .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn subsuper(
     input: &str,
 ) -> ParseResult<'_, (Option<Constraint>, Option<SubTypeDecl>)> {
     tuple((opt(supertype_constraint), opt(subtype_declaration))).parse(input)
 }
 
-/// 318 subtype_declaration = SUBTYPE OF `(` [entity_ref] { `,` [entity_ref] }
-/// `)` .
+/// 318 `subtype_declaration` = SUBTYPE OF `(` [`entity_ref`] { `,`
+/// [`entity_ref`] } `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn subtype_declaration(input: &str) -> ParseResult<'_, SubTypeDecl> {
     tuple((
         tag("SUBTYPE"),
@@ -45,15 +70,23 @@ pub fn subtype_declaration(input: &str) -> ParseResult<'_, SubTypeDecl> {
     .parse(input)
 }
 
-/// 313 subtype_constraint = OF `(` [supertype_expression] `)` .
+/// 313 `subtype_constraint` = OF `(` [`supertype_expression`] `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn subtype_constraint(input: &str) -> ParseResult<'_, SuperTypeExpression> {
     tuple((tag("OF"), char('('), supertype_expression, char(')')))
         .map(|(_of, _open, expr, _close)| expr)
         .parse(input)
 }
 
-/// 319 supertype_constraint = [abstract_entity_declaration] |
-/// [abstract_supertype_declaration] | [supertype_rule] .
+/// 319 `supertype_constraint` = [`abstract_entity_declaration`] |
+/// [`abstract_supertype_declaration`] | [`supertype_rule`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn supertype_constraint(input: &str) -> ParseResult<'_, Constraint> {
     alt((
         abstract_supertype_declaration,
@@ -63,7 +96,12 @@ pub fn supertype_constraint(input: &str) -> ParseResult<'_, Constraint> {
     .parse(input)
 }
 
-/// 320 supertype_expression = [supertype_factor] { ANDOR [supertype_factor] } .
+/// 320 `supertype_expression` = [`supertype_factor`] { ANDOR
+/// [`supertype_factor`] } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn supertype_expression(
     input: &str,
 ) -> ParseResult<'_, SuperTypeExpression> {
@@ -85,7 +123,11 @@ pub fn supertype_expression(
     .parse(input)
 }
 
-/// 321 supertype_factor = [supertype_term] { AND [supertype_term] } .
+/// 321 `supertype_factor` = [`supertype_term`] { AND [`supertype_term`] } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn supertype_factor(input: &str) -> ParseResult<'_, SuperTypeExpression> {
     tuple((supertype_term, many0(tuple((tag("AND"), supertype_term)))))
         .map(|(first, tails)| {
@@ -102,8 +144,12 @@ pub fn supertype_factor(input: &str) -> ParseResult<'_, SuperTypeExpression> {
         .parse(input)
 }
 
-/// 323 supertype_term = [entity_ref] | [one_of] | `(` [supertype_expression]
-/// `)` .
+/// 323 `supertype_term` = [`entity_ref`] | [`one_of`] | `(`
+/// [`supertype_expression`] `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn supertype_term(input: &str) -> ParseResult<'_, SuperTypeExpression> {
     let expr = tuple((char('('), supertype_expression, char(')')))
         .map(|(_open, expr, _close)| expr);
@@ -111,15 +157,23 @@ pub fn supertype_term(input: &str) -> ParseResult<'_, SuperTypeExpression> {
         .parse(input)
 }
 
-/// 322 supertype_rule = SUPERTYPE [subtype_constraint] .
+/// 322 `supertype_rule` = SUPERTYPE [`subtype_constraint`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn supertype_rule(input: &str) -> ParseResult<'_, Constraint> {
     tuple((tag("SUPERTYPE"), subtype_constraint))
         .map(|(_supertype, constraint)| Constraint::SuperTypeRule(constraint))
         .parse(input)
 }
 
-/// 263 one_of = ONEOF `(` [supertype_expression] { `,` [supertype_expression] }
-/// `)` .
+/// 263 `one_of` = ONEOF `(` [`supertype_expression`] { `,`
+/// [`supertype_expression`] } `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn one_of(input: &str) -> ParseResult<'_, SuperTypeExpression> {
     tuple((
         tag("ONEOF"),
@@ -131,8 +185,12 @@ pub fn one_of(input: &str) -> ParseResult<'_, SuperTypeExpression> {
     .parse(input)
 }
 
-/// 315 subtype_constraint_decl = [subtype_constraint_head]
-/// [subtype_constraint_body] END_SUBTYPE_CONSTRAINT `;` .
+/// 315 `subtype_constraint_decl` = [`subtype_constraint_head`]
+/// [`subtype_constraint_body`] `END_SUBTYPE_CONSTRAINT` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn subtype_constraint_decl(
     input: &str,
 ) -> ParseResult<'_, SubTypeConstraint> {
@@ -159,8 +217,12 @@ pub fn subtype_constraint_decl(
     .parse(input)
 }
 
-/// 316 subtype_constraint_head = SUBTYPE_CONSTRAINT [subtype_constraint_id] FOR
-/// [entity_ref] `;` .
+/// 316 `subtype_constraint_head` = `SUBTYPE_CONSTRAINT`
+/// [`subtype_constraint_id`] FOR [`entity_ref`] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn subtype_constraint_head(
     input: &str,
 ) -> ParseResult<'_, (String, String)> {
@@ -175,8 +237,12 @@ pub fn subtype_constraint_head(
     .parse(input)
 }
 
-/// 314 subtype_constraint_body = \[ [abstract_supertype] \] \[ [total_over] \]
-/// \[ [supertype_expression] `;` \] .
+/// 314 `subtype_constraint_body` = \[ [`abstract_supertype`] \] \[
+/// [`total_over`] \] \[ [`supertype_expression`] `;` \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn subtype_constraint_body(
     input: &str,
 ) -> ParseResult<'_, (bool, Option<Vec<String>>, Option<SuperTypeExpression>)> {
@@ -189,7 +255,12 @@ pub fn subtype_constraint_body(
     .parse(input)
 }
 
-/// 326 total_over = TOTAL_OVER `(` [entity_ref] { `,` [entity_ref] } `)` `;` .
+/// 326 `total_over` = `TOTAL_OVER` `(` [`entity_ref`] { `,` [`entity_ref`] }
+/// `)` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn total_over(input: &str) -> ParseResult<'_, Vec<String>> {
     tuple((
         tag("TOTAL_OVER"),
@@ -202,7 +273,11 @@ pub fn total_over(input: &str) -> ParseResult<'_, Vec<String>> {
     .parse(input)
 }
 
-/// 165 abstract_supertype = ABSTRACT SUPERTYPE `;` .
+/// 165 `abstract_supertype` = ABSTRACT SUPERTYPE `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn abstract_supertype(input: &str) -> ParseResult<'_, ()> {
     tuple((tag("ABSTRACT"), tag("SUPERTYPE"), char(';')))
         .map(|(_abstract, _supertype, _semicolon)| ())

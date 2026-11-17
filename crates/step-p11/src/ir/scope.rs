@@ -1,4 +1,4 @@
-use itertools::*;
+use itertools::Itertools;
 use std::{cmp, fmt};
 
 /// Identifier in EXPRESS language must be one of scopes described in
@@ -85,6 +85,7 @@ impl PartialOrd for Scope {
 macro_rules! add_scope {
     ($f:ident, $ty:ident) => {
         #[doc = stringify!(Add $ty scope)]
+        #[must_use]
         pub fn $f(&self, name: &str) -> Self {
             self.pushed(ScopeType::$ty, name)
         }
@@ -112,10 +113,12 @@ impl Scope {
 
     add_scope!(r#type, Type);
 
+    #[must_use]
     pub fn root() -> Self {
         Self(Vec::new())
     }
 
+    #[must_use]
     pub fn pushed(&self, ty: ScopeType, name: &str) -> Self {
         let mut new = self.clone();
         new.0.push((ty, name.to_string()));
@@ -125,6 +128,7 @@ impl Scope {
     /// Pop the last scope
     ///
     /// Returns `None` when `self` is root.
+    #[must_use]
     pub fn popped(&self) -> Option<Self> {
         let mut new = self.clone();
         let _current = new.0.pop()?;
@@ -181,8 +185,9 @@ impl Path {
 
     new_path!(r#type, Type);
 
+    #[must_use]
     pub fn new(scope: &Scope, ty: ScopeType, name: &str) -> Self {
-        Path {
+        Self {
             scope: scope.clone(),
             ty,
             name: name.to_string(),

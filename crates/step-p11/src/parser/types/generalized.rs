@@ -1,15 +1,27 @@
 use super::{
-    super::{combinator::*, identifier::*},
-    *,
+    super::{
+        combinator::{EsprParser, ParseResult, alt, char, opt, tag, tuple},
+        identifier::{entity_ref, type_label_id, type_label_ref, type_ref},
+    },
+    bound_spec, simple_types,
 };
-use crate::ast::*;
+use crate::ast::Type;
 
-/// 258 named_types = [entity_ref] | [type_ref] .
+/// 258 `named_types` = [`entity_ref`] | [`type_ref`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn named_types(input: &str) -> ParseResult<'_, String> {
     alt((entity_ref, type_ref)).parse(input)
 }
 
-/// 266 parameter_type = [generalized_types] | [named_types] | [simple_types] .
+/// 266 `parameter_type` = [`generalized_types`] | [`named_types`] |
+/// [`simple_types`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn parameter_type(input: &str) -> ParseResult<'_, Type> {
     alt((
         named_types.map(Type::Named),
@@ -19,8 +31,12 @@ pub fn parameter_type(input: &str) -> ParseResult<'_, Type> {
     .parse(input)
 }
 
-/// 223 generalized_types = [aggregate_type] | [general_aggregation_types] |
-/// [generic_entity_type] | [generic_type] .
+/// 223 `generalized_types` = [`aggregate_type`] | [`general_aggregation_types`]
+/// | [`generic_entity_type`] | [`generic_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn generalized_types(input: &str) -> ParseResult<'_, Type> {
     alt((
         aggregate_type,
@@ -31,7 +47,12 @@ pub fn generalized_types(input: &str) -> ParseResult<'_, Type> {
     .parse(input)
 }
 
-/// 171 aggregate_type = AGGREGATE \[ `:` [type_label] \] OF [parameter_type] .
+/// 171 `aggregate_type` = AGGREGATE \[ `:` [`type_label`] \] OF
+/// [`parameter_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn aggregate_type(input: &str) -> ParseResult<'_, Type> {
     tuple((
         tag("AGGREGATE"),
@@ -46,7 +67,11 @@ pub fn aggregate_type(input: &str) -> ParseResult<'_, Type> {
     .parse(input)
 }
 
-/// 230 generic_entity_type = GENERIC_ENTITY \[ `:` [type_label] \] .
+/// 230 `generic_entity_type` = `GENERIC_ENTITY` \[ `:` [`type_label`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn generic_entity_type(input: &str) -> ParseResult<'_, Type> {
     tuple((tag("GENERIC_ENTITY"), opt(tuple((char(':'), type_label)))))
         .map(|(_generic, opt)| {
@@ -55,20 +80,32 @@ pub fn generic_entity_type(input: &str) -> ParseResult<'_, Type> {
         .parse(input)
 }
 
-/// 231 generic_type = GENERIC \[ `:` [type_label] \] .
+/// 231 `generic_type` = GENERIC \[ `:` [`type_label`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn generic_type(input: &str) -> ParseResult<'_, Type> {
     tuple((tag("GENERIC"), opt(tuple((char(':'), type_label)))))
         .map(|(_generic, opt)| Type::Generic(opt.map(|(_colon, label)| label)))
         .parse(input)
 }
 
-/// 329 type_label = [type_label_id] | [type_label_ref] .
+/// 329 `type_label` = [`type_label_id`] | [`type_label_ref`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn type_label(input: &str) -> ParseResult<'_, String> {
     alt((type_label_id, type_label_ref)).parse(input)
 }
 
-/// 224 general_aggregation_types = [general_array_type] | [general_bag_type] |
-/// [general_list_type] | [general_set_type] .
+/// 224 `general_aggregation_types` = [`general_array_type`] |
+/// [`general_bag_type`] | [`general_list_type`] | [`general_set_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn general_aggregation_types(input: &str) -> ParseResult<'_, Type> {
     alt((
         general_array_type,
@@ -79,8 +116,12 @@ pub fn general_aggregation_types(input: &str) -> ParseResult<'_, Type> {
     .parse(input)
 }
 
-/// 225 general_array_type = ARRAY \[ [bound_spec] \] OF \[ OPTIONAL \] \[
-/// UNIQUE \] [parameter_type] .
+/// 225 `general_array_type` = ARRAY \[ [`bound_spec`] \] OF \[ OPTIONAL \] \[
+/// UNIQUE \] [`parameter_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn general_array_type(input: &str) -> ParseResult<'_, Type> {
     tuple((
         tag("ARRAY"),
@@ -99,7 +140,11 @@ pub fn general_array_type(input: &str) -> ParseResult<'_, Type> {
     .parse(input)
 }
 
-/// 226 general_bag_type = BAG \[ [bound_spec] \] OF [parameter_type] .
+/// 226 `general_bag_type` = BAG \[ [`bound_spec`] \] OF [`parameter_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn general_bag_type(input: &str) -> ParseResult<'_, Type> {
     tuple((tag("BAG"), opt(bound_spec), tag("OF"), parameter_type))
         .map(|(_bag, bound, _of, base)| Type::Bag {
@@ -109,8 +154,12 @@ pub fn general_bag_type(input: &str) -> ParseResult<'_, Type> {
         .parse(input)
 }
 
-/// 227 general_list_type = LIST \[ [bound_spec] \] OF \[ UNIQUE \]
-/// [parameter_type] .
+/// 227 `general_list_type` = LIST \[ [`bound_spec`] \] OF \[ UNIQUE \]
+/// [`parameter_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn general_list_type(input: &str) -> ParseResult<'_, Type> {
     tuple((
         tag("LIST"),
@@ -127,7 +176,11 @@ pub fn general_list_type(input: &str) -> ParseResult<'_, Type> {
     .parse(input)
 }
 
-/// 229 general_set_type = SET \[ [bound_spec] \] OF [parameter_type] .
+/// 229 `general_set_type` = SET \[ [`bound_spec`] \] OF [`parameter_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn general_set_type(input: &str) -> ParseResult<'_, Type> {
     tuple((tag("SET"), opt(bound_spec), tag("OF"), parameter_type))
         .map(|(_set, bound, _of, base)| Type::Set {
@@ -140,7 +193,7 @@ pub fn general_set_type(input: &str) -> ParseResult<'_, Type> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::Expression;
+    use crate::ast::{Bound, Expression, SimpleType};
     use nom::Finish;
 
     #[test]

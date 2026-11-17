@@ -1,5 +1,5 @@
 //! Intermediate Representation ([IR]) legalized (semantically analyzed) from
-//! [SyntaxTree]
+//! [`SyntaxTree`]
 //!
 //! Legalize procedure consists of three steps:
 //!
@@ -208,6 +208,10 @@ pub trait Legalize: Sized {
     /// AST portion
     type Input;
 
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     fn legalize(
         namespace: &Namespace,
         constraints: &Constraints,
@@ -223,6 +227,10 @@ pub struct IR {
 }
 
 impl IR {
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn from_syntax_tree(st: &SyntaxTree) -> Result<Self, SemanticError> {
         let ns = Namespace::new(st);
         let ss = Constraints::new(&ns, st)?;
@@ -245,6 +253,6 @@ impl Legalize for IR {
             .iter()
             .map(|schema| Schema::legalize(ns, ss, scope, schema))
             .collect::<Result<Vec<Schema>, SemanticError>>()?;
-        Ok(IR { schemas })
+        Ok(Self { schemas })
     }
 }

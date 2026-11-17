@@ -1,9 +1,9 @@
-use crate::ir::*;
+use crate::ir::{Entity, EntityAttribute, TypeRef};
 
 use check_keyword::CheckKeyword;
 use inflector::Inflector;
 use proc_macro2::TokenStream;
-use quote::*;
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 use syn::parse_quote;
 
 // Each component of Rust struct corresponding to ENTITY in EXPRESS
@@ -47,7 +47,7 @@ impl From<EntityAttribute> for Field {
             parse_quote! { #ty }
         };
 
-        Field {
+        Self {
             name,
             ty,
             attributes,
@@ -57,7 +57,7 @@ impl From<EntityAttribute> for Field {
 
 impl ToTokens for Field {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Field {
+        let Self {
             name,
             ty,
             attributes,

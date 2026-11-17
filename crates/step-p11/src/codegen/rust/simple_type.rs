@@ -1,11 +1,13 @@
 use proc_macro2::TokenStream;
-use quote::*;
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 
-use crate::ir::*;
+use crate::ir::SimpleType;
 
 impl ToTokens for SimpleType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        use crate::ast::SimpleType::*;
+        use crate::ast::SimpleType::{
+            Binary, Boolen, Integer, Logical, Number, Real, String_,
+        };
         match self.0 {
             Number => tokens.append(format_ident!("f64")),
             Real => tokens.append(format_ident!("f64")),

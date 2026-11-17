@@ -14,11 +14,22 @@ pub use expression::*;
 pub use schema::*;
 pub use types::*;
 
-use crate::parser::{combinator::*, *};
+use crate::parser::{
+    combinator::{EsprParser, many1, spaces, tuple},
+    schema_decl,
+};
 use nom::Finish;
 
 pub trait Component: Sized {
+    ///
+    /// # Errors
+    /// Returns an error if the EXPRESS input is malformed or cannot be
+    /// tokenized.
     fn parse(input: &str) -> Result<(Self, Vec<Remark>), TokenizeFailed>;
+    ///
+    /// # Errors
+    /// Returns an error if the EXPRESS input is malformed or cannot be
+    /// tokenized.
     fn from_str(input: &str) -> Result<Self, TokenizeFailed> {
         let (component, _remarks) = Self::parse(input)?;
         Ok(component)
@@ -62,6 +73,10 @@ pub struct SyntaxTree {
 }
 
 impl SyntaxTree {
+    ///
+    /// # Errors
+    /// Returns an error if the EXPRESS input is malformed or cannot be
+    /// tokenized.
     pub fn parse(input: &str) -> Result<Self, nom::error::VerboseError<&str>> {
         let (residual, (schemas, remarks)) =
             tuple((spaces, many1(schema_decl), spaces))
@@ -69,7 +84,7 @@ impl SyntaxTree {
                 .parse(input)
                 .finish()?;
         assert!(residual.is_empty());
-        Ok(SyntaxTree { schemas, remarks })
+        Ok(Self { schemas, remarks })
     }
 
     // Example syntax tree for easy testing

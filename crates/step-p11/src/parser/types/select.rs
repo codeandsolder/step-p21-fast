@@ -1,14 +1,28 @@
-use super::{super::combinator::*, *};
-use crate::ast::*;
+use super::{
+    super::combinator::{
+        EsprParser, ParseResult, char, comma_separated, opt, spaces, tag, tuple,
+    },
+    named_types, type_ref,
+};
+use crate::ast::{Extensibility, Type};
 
-/// 301 select_list = `(` [named_types] { `,` [named_types] } `)` .
+/// 301 `select_list` = `(` [`named_types`] { `,` [`named_types`] } `)` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn select_list(input: &str) -> ParseResult<'_, Vec<String>> {
     tuple((char('('), comma_separated(named_types), char(')')))
         .map(|(_start, ids, _end)| ids)
         .parse(input)
 }
 
-/// 300 select_extension = BASED_ON [type_ref] \[ WITH [select_list] \] .
+/// 300 `select_extension` = `BASED_ON` [`type_ref`] \[ WITH [`select_list`] \]
+/// .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn select_extension(input: &str) -> ParseResult<'_, (String, Vec<String>)> {
     let with = tuple((tag("WITH"), select_list)).map(|(_with, list)| list);
     tuple((tag("BASED_ON"), type_ref, opt(with)))
@@ -16,8 +30,12 @@ pub fn select_extension(input: &str) -> ParseResult<'_, (String, Vec<String>)> {
         .parse(input)
 }
 
-/// 302 select_type = \[ EXTENSIBLE \[ GENERIC_ENTITY \] \] SELECT \[
-/// [select_list] | [select_extension] \] .
+/// 302 `select_type` = \[ EXTENSIBLE \[ `GENERIC_ENTITY` \] \] SELECT \[
+/// [`select_list`] | [`select_extension`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn select_type(input: &str) -> ParseResult<'_, Type> {
     // FIXME support select_extension
 
