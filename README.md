@@ -41,8 +41,9 @@ The second goal is **ergonomics**. The upstream codebase carries terse
 EXPRESS-flavored names and occasionally confusing phrasing. Public names here are
 spelled out, documentation is written to be read by someone who is not already
 fluent in ISO 10303, and the language is kept inclusive and plain -- whether you
-are a non-native English speaker or a seasoned CAD engineer. Every rename ships a
-`#[deprecated]` alias, so code written against `ruststep` keeps compiling.
+are a non-native English speaker or a seasoned CAD engineer. Public API changes
+are documented in the changelog rather than preserved with compatibility aliases;
+downstream consumers update their imports when upgrading the parser.
 
 Fixes that are not fork-specific are worth offering upstream. Nothing here is
 intended as a hostile fork.

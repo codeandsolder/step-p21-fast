@@ -1,12 +1,23 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
-- Optimized Part 21 parsing by avoiding speculative comment parsing and
-  temporary allocations for common keywords and contiguous real literals.
-  Preserves whitespace-separated numeric grammar and reports complete
-  AST equivalence across 29 real-world Monstertruck fixtures.
-- Adopted maintained shared Rust/sccache CI, strict Rust review, and fleet
-  Renovate policy; retained EXPRESS grammar regression checks.
-- Updated repository metadata for the maintained downstream fork.
+- Adopted pinned shared managed-sccache Rust CI, strict `rust-skills2` linting,
+  fleet Renovate policy, a tracked lockfile, and EXPRESS AP201/AP203 grammar
+  checks.
+- Removed inherited proc-macro parser panics, improved error reporting in the
+  EXPRESS compiler CLI, and made `step-p11::codegen::rust::rustfmt` fallible.
+- Replaced parser integer/real overflow and unsupported serialization panics
+  with structured errors, and added boundary and invalid-input regression tests.
+- Replaced the generated `IntoOwned` blanket Clippy allowance with correct
+  shorthand fields. Cleaned up documentation, imports, and outdated test debug
+  prints; repaired broken rustdoc links.
+- **Breaking API changes:** `AST` is now `Ast`, `URI` is now `Uri`,
+  `Header` fields are `description`, `name`, and `schema`, and
+  `rustfmt` returns `io::Result<String>`. Downstream projects must adapt
+  when upgrading to the new commit.
+- The Part 21 parser acceleration was merged **separately** as fork PR #1
+  (`2f5e217`), and its Git dependency submodule repair as PR #2
+  (`17da5a2`); this adoption work is based on both and does not duplicate
+  those commits.
 
 # 0.1.1 (2026-08-18)
 
