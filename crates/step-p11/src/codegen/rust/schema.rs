@@ -13,10 +13,10 @@ pub enum CratePrefix {
 
 impl CratePrefix {
     #[must_use]
-    pub fn as_path(&self) -> syn::Path {
+    pub fn as_path(self) -> syn::Path {
         match self {
-            Self::Internal => syn::parse_str("crate").unwrap(),
-            Self::External => syn::parse_str("::step_p21").unwrap(),
+            Self::Internal => syn::parse_quote!(crate),
+            Self::External => syn::parse_quote!(::step_p21),
         }
     }
 }
@@ -61,7 +61,7 @@ impl Schema {
                     .map(|e| format_ident!("{}", e.id().into_safe())),
             )
             .collect();
-        let holders_name: Vec<_> = entities
+        let holder_getters: Vec<_> = entities
             .iter()
             .map(|e| format_ident!("{}_holders", e.name))
             .chain(type_decls.map(|e| format_ident!("{}_holders", e.id())))
@@ -83,7 +83,7 @@ impl Schema {
 
                 impl Tables {
                     #(
-                    pub fn #holders_name(&self) -> &HashMap<u64, as_holder!(#entity_types)> {
+                    pub fn #holder_getters(&self) -> &HashMap<u64, as_holder!(#entity_types)> {
                         &self.#holder_name
                     }
                     )*

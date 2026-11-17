@@ -51,11 +51,7 @@ pub fn hex_digit(input: &str) -> RawParseResult<'_, u8> {
 /// EXPRESS grammar production.
 pub fn octet(input: &str) -> RawParseResult<'_, u8> {
     tuple((hex_digit, hex_digit))
-        .map(|(u, l)| {
-            assert!(u < 16);
-            assert!(l < 16);
-            u * 16 + l
-        })
+        .map(|(u, l)| u * 16 + l)
         .parse(input)
 }
 
@@ -66,7 +62,7 @@ pub fn octet(input: &str) -> RawParseResult<'_, u8> {
 /// EXPRESS grammar production.
 pub fn encoded_character(input: &str) -> RawParseResult<'_, [u8; 4]> {
     tuple((octet, octet, octet, octet))
-        .map(|(a, b, c, d)| [a, b, c, d])
+        .map(Into::into)
         .parse(input)
 }
 
@@ -77,13 +73,13 @@ pub fn encoded_character(input: &str) -> RawParseResult<'_, [u8; 4]> {
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn encoded_string_literal(input: &str) -> RawParseResult<'_, String> {
-    tuple((char('"'), many1(encoded_character), char('"')))
-        .map(|(_openq, chars, _closeq)| {
-            let raw_chars: Vec<u8> =
-                chars.iter().flat_map(|c| c.iter()).cloned().collect();
-            String::from_utf8(raw_chars).expect("non UTF8 input")
-        })
-        .parse(input)
+    nom::combinator::map_res(
+        tuple((char('"'), many1(encoded_character), char('"'))),
+        |(_openq, chars, _closeq): (_, Vec<[u8; 4]>, _)| {
+            String::from_utf8(chars.into_iter().flatten().collect())
+        },
+    )
+    .parse(input)
 }
 
 /// 144 `simple_string_literal` = \q { ( \q \q ) | `not_quote` | \s | \x9 | \xA

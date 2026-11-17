@@ -72,9 +72,19 @@ fn identifier_continuation(
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn integer_literal(input: &str) -> ParseResult<'_, u64> {
-    remarked(nom::character::complete::digit1)
-        .map(|d: &str| d.parse().unwrap())
-        .parse(input)
+    let (rest, (digits, remarks)) =
+        remarked(nom::character::complete::digit1).parse(input)?;
+    let number = digits.parse::<u64>().map_err(|_| {
+        nom::Err::Failure(nom::error::VerboseError {
+            errors: vec![(
+                rest,
+                nom::error::VerboseErrorKind::Context(
+                    "integer-literal-overflow",
+                ),
+            )],
+        })
+    })?;
+    Ok((rest, (number, remarks)))
 }
 
 /// 142 `real_literal` = `integer_literal` | ( digits `.` \[ digits \] \[ `e` \[

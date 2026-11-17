@@ -57,7 +57,7 @@ impl Ord for PartialComplexEntity {
     fn cmp(&self, rhs: &Self) -> Ordering {
         match Ord::cmp(&self.indices.len(), &rhs.indices.len()) {
             Ordering::Equal => Ord::cmp(&self.indices, &rhs.indices),
-            a @ Ordering::Less | a @ Ordering::Greater => a,
+            a @ (Ordering::Less | Ordering::Greater) => a,
         }
     }
 }
@@ -66,7 +66,7 @@ impl PartialComplexEntity {
     #[must_use]
     pub fn new(indices: &[usize]) -> Self {
         Self {
-            indices: indices.iter().cloned().dedup().collect(),
+            indices: indices.iter().copied().dedup().collect(),
         }
     }
 

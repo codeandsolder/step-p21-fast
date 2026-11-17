@@ -108,7 +108,7 @@ impl Expression {
 
     /// `SELF` constant with qualifiers
     #[must_use]
-    pub fn self_qualified(qualifiers: Vec<Qualifier>) -> Self {
+    pub const fn self_qualified(qualifiers: Vec<Qualifier>) -> Self {
         Self::QualifiableFactor {
             factor: QualifiableFactor::BuiltInConstant(BuiltInConstant::Self_),
             qualifiers,
@@ -117,7 +117,7 @@ impl Expression {
 
     /// `?` constant
     #[must_use]
-    pub fn indeterminate() -> Self {
+    pub const fn indeterminate() -> Self {
         Self::QualifiableFactor {
             factor: QualifiableFactor::BuiltInConstant(
                 BuiltInConstant::Indeterminate,
@@ -128,7 +128,7 @@ impl Expression {
 
     /// Real value literal
     #[must_use]
-    pub fn real(value: f64) -> Self {
+    pub const fn real(value: f64) -> Self {
         Self::Literal(Literal::Real(value))
     }
 }
@@ -166,47 +166,43 @@ pub enum QualifiableFactor {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionCallName {
     BuiltInFunction(BuiltInFunction),
     Reference(String),
 }
 
-#[expect(
-    non_camel_case_types,
-    reason = "EXPRESS identifiers are standardized uppercase spellings"
-)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BuiltInFunction {
-    ABS,
-    ACOS,
-    ASIN,
-    ATAN,
-    BLENGTH,
-    COS,
-    EXISTS,
-    EXP,
-    FORMAT,
-    HIBOUND,
-    HIINDEX,
-    LENGTH,
-    LOBOUND,
-    LOINDEX,
-    LOG,
-    LOG2,
-    LOG10,
-    NVL,
-    ODD,
-    ROLESOF,
-    SIN,
-    SIZEOF,
-    SQRT,
-    TAN,
-    TYPEOF,
-    USEDIN,
-    VALUE,
-    VALUE_IN,
-    VALUE_UNIQUE,
+    Abs,
+    Acos,
+    Asin,
+    Atan,
+    Blength,
+    Cos,
+    Exists,
+    Exp,
+    Format,
+    Hibound,
+    Hiindex,
+    Length,
+    Lobound,
+    Loindex,
+    Log,
+    Log2,
+    Log10,
+    Nvl,
+    Odd,
+    Rolesof,
+    Sin,
+    Sizeof,
+    Sqrt,
+    Tan,
+    Typeof,
+    Usedin,
+    Value,
+    ValueIn,
+    ValueUnique,
 }
 
 /// Output of [qualifier]

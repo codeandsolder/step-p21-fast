@@ -83,7 +83,16 @@ impl SyntaxTree {
                 .map(|(_start_space, schemas, _end_space)| schemas)
                 .parse(input)
                 .finish()?;
-        assert!(residual.is_empty());
+        if !residual.is_empty() {
+            return Err(nom::error::VerboseError {
+                errors: vec![(
+                    residual,
+                    nom::error::VerboseErrorKind::Context(
+                        "trailing EXPRESS input",
+                    ),
+                )],
+            });
+        }
         Ok(Self { schemas, remarks })
     }
 

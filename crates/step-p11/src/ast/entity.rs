@@ -29,15 +29,13 @@ crate::derive_ast_component!(Entity, entity_decl);
 
 impl Entity {
     #[must_use]
-    pub fn has_supertype_decl(&self) -> bool {
-        if let Some(c) = &self.constraint {
-            match c {
+    pub const fn has_supertype_decl(&self) -> bool {
+        match &self.constraint {
+            Some(
                 Constraint::AbstractSuperType(..)
-                | Constraint::SuperTypeRule(..) => true,
-                Constraint::AbstractEntity => false,
-            }
-        } else {
-            false
+                | Constraint::SuperTypeRule(..),
+            ) => true,
+            Some(Constraint::AbstractEntity) | None => false,
         }
     }
 }
@@ -52,7 +50,7 @@ pub struct EntityBody {
     pub where_clause: Option<WhereClause>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeDecl {
     Reference(String),
     Qualified {
@@ -70,7 +68,7 @@ impl<'a> PartialEq<&'a str> for AttributeDecl {
     fn eq(&self, other: &&'a str) -> bool {
         match self {
             Self::Reference(name) => other.eq(name),
-            _ => false,
+            Self::Qualified { .. } => false,
         }
     }
 }

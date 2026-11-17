@@ -64,7 +64,7 @@ impl fmt::Debug for Scope {
             if i != 0 {
                 write!(f, ".")?;
             }
-            write!(f, "{}[{:?}]", name, ty)?;
+            write!(f, "{name}[{ty:?}]")?;
         }
         write!(f, ")")?;
         Ok(())
@@ -114,7 +114,7 @@ impl Scope {
     add_scope!(r#type, Type);
 
     #[must_use]
-    pub fn root() -> Self {
+    pub const fn root() -> Self {
         Self(Vec::new())
     }
 

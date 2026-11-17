@@ -27,7 +27,7 @@ fn use_place_holder(ty: &TypeRef) -> bool {
         TypeRef::Set { base, .. } | TypeRef::List { base, .. } => {
             use_place_holder(base)
         }
-        _ => true,
+        TypeRef::Entity { .. } => true,
     }
 }
 
@@ -245,19 +245,19 @@ impl Entity {
 
     fn derives(&self) -> Vec<syn::Path> {
         let mut derives = vec![
-            syn::parse_str("Debug").unwrap(),
-            syn::parse_str("Clone").unwrap(),
-            syn::parse_str("PartialEq").unwrap(),
-            syn::parse_str("::derive_new::new").unwrap(),
-            syn::parse_str("Holder").unwrap(),
+            syn::parse_quote!(Debug),
+            syn::parse_quote!(Clone),
+            syn::parse_quote!(PartialEq),
+            syn::parse_quote!(::derive_new::new),
+            syn::parse_quote!(Holder),
         ];
         if !self.supertypes.is_empty() {
-            derives.push(syn::parse_str("AsRef").unwrap());
-            derives.push(syn::parse_str("AsMut").unwrap());
+            derives.push(syn::parse_quote!(AsRef));
+            derives.push(syn::parse_quote!(AsMut));
         }
         if self.supertypes.len() == 1 {
-            derives.push(syn::parse_str("Deref").unwrap());
-            derives.push(syn::parse_str("DerefMut").unwrap());
+            derives.push(syn::parse_quote!(Deref));
+            derives.push(syn::parse_quote!(DerefMut));
         }
         derives
     }

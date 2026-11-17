@@ -99,15 +99,27 @@ pub fn binary_type(input: &str) -> ParseResult<'_, SimpleType> {
 /// EXPRESS grammar production.
 pub fn width_spec(input: &str) -> ParseResult<'_, WidthSpec> {
     // FIXME Should use `numeric_expression` parser
-    tuple((char('('), is_not(")"), char(')'), opt(tag("FIXED"))))
-        .map(|(_lparen, width, _rparen, fixed)| {
-            let width = width.parse::<usize>().unwrap(); // FIXME should raise error instead of panic
+    let (rest, ((_, width, _, fixed), remarks)) =
+        tuple((char('('), is_not(")"), char(')'), opt(tag("FIXED"))))
+            .parse(input)?;
+    let width = width.parse::<usize>().map_err(|_| {
+        nom::Err::Failure(nom::error::VerboseError {
+            errors: vec![(
+                rest,
+                nom::error::VerboseErrorKind::Context("width-spec-overflow"),
+            )],
+        })
+    })?;
+    Ok((
+        rest,
+        (
             WidthSpec {
                 width,
                 fixed: fixed.is_some(),
-            }
-        })
-        .parse(input)
+            },
+            remarks,
+        ),
+    ))
 }
 
 #[cfg(test)]

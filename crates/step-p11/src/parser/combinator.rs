@@ -18,7 +18,7 @@ pub struct Map<'a, P, O1, O2, F> {
 }
 
 // not use `#[derive(Close)]` becuase it requires `O1, O2: Clone`
-impl<'a, P: Clone, O1, O2, F: Clone> Clone for Map<'a, P, O1, O2, F> {
+impl<P: Clone, O1, O2, F: Clone> Clone for Map<'_, P, O1, O2, F> {
     fn clone(&self) -> Self {
         Map {
             parser: self.parser.clone(),
@@ -141,7 +141,7 @@ pub fn not<'a>(
     f: impl EsprParser<'a, &'a str>,
 ) -> impl EsprParser<'a, &'a str> {
     move |input: &'a str| {
-        let (input, _) = nom::combinator::not(f.clone())(input)?;
+        let (input, ()) = nom::combinator::not(f.clone())(input)?;
         Ok((input, ("", Vec::new())))
     }
 }
