@@ -170,10 +170,6 @@ pub enum FunctionCallName {
     non_camel_case_types,
     reason = "EXPRESS identifiers are standardized uppercase spellings"
 )]
-#[expect(
-    clippy::upper_case_acronyms,
-    reason = "EXPRESS identifiers are standardized uppercase spellings"
-)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BuiltInFunction {
     ABS,
