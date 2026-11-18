@@ -5,6 +5,12 @@ on:
     branches: [master]
   pull_request:
 
+# Discard older documentation checks when the same PR receives new commits.
+# Keep default-branch push validation independent of pull-request runs.
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
