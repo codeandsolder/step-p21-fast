@@ -17,6 +17,18 @@ pub fn table_arg() -> syn::Ident {
     syn::Ident::new("table", Span::call_site())
 }
 
+/// Declare `Eq` only when explicitly requested with `#[holder(eq)]`.
+/// Sibling `#[derive(Eq)]` attributes are removed from proc-macro input by
+/// rustc, and floating-point holder fields do not support `Eq`.
+pub fn holder_derive_attrs(derive_eq: bool, is_enum: bool) -> TokenStream2 {
+    match (derive_eq, is_enum) {
+        (true, true) => quote! { #[derive(Clone, Debug, PartialEq, Eq)] },
+        (false, true) => quote! { #[derive(Clone, Debug, PartialEq)] },
+        (true, false) => quote! { #[derive(Debug, Clone, PartialEq, Eq)] },
+        (false, false) => quote! { #[derive(Debug, Clone, PartialEq)] },
+    }
+}
+
 /// Produce the same reference resolution contract for named and tuple holders.
 pub fn impl_entity_table(
     ident: &syn::Ident,

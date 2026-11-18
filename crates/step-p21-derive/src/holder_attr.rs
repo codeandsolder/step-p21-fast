@@ -6,6 +6,7 @@
 //! - `#[holder(field = {field_ident})]`
 //! - `#[holder(use_place_holder)]`
 //! - `#[holder(generate_deserialize)]`
+//! - `#[holder(eq)]` to derive `Eq` on the generated holder
 
 use proc_macro_error2::abort;
 
@@ -15,6 +16,7 @@ pub struct HolderAttr {
     pub field: Option<syn::Member>,
     pub place_holder: bool,
     pub generate_deserialize: bool,
+    pub derive_eq: bool,
 }
 
 impl HolderAttr {
@@ -23,6 +25,7 @@ impl HolderAttr {
         let mut field = None;
         let mut place_holder = false;
         let mut generate_deserialize = false;
+        let mut derive_eq = false;
 
         for attr in attrs {
             // Only read `#[holder(...)]`
@@ -49,6 +52,9 @@ impl HolderAttr {
                 Attr::GenerateDeserialize => {
                     generate_deserialize = true;
                 }
+                Attr::Eq => {
+                    derive_eq = true;
+                }
             }
         }
         Self {
@@ -56,6 +62,7 @@ impl HolderAttr {
             field,
             place_holder,
             generate_deserialize,
+            derive_eq,
         }
     }
 }
@@ -66,6 +73,7 @@ enum Attr {
     Field(syn::Member),
     PlaceHolder,
     GenerateDeserialize,
+    Eq,
 }
 
 impl syn::parse::Parse for Attr {
@@ -84,9 +92,10 @@ impl syn::parse::Parse for Attr {
             }
             "use_place_holder" => Ok(Self::PlaceHolder),
             "generate_deserialize" => Ok(Self::GenerateDeserialize),
+            "eq" => Ok(Self::Eq),
             _ => Err(syn::parse::Error::new(
                 ident.span(),
-                "expected `table`, `field`, or `use_place_holder`",
+                "expected `table`, `field`, `eq`, `generate_deserialize`, or `use_place_holder`",
             )),
         }
     }
@@ -128,6 +137,15 @@ mod tests {
         assert!(syn::parse_str::<Attr>("field").is_err());
         // identifier is empty
         assert!(syn::parse_str::<Attr>("field =").is_err());
+    }
+
+    #[test]
+    fn parse_attr_eq() {
+        assert_eq!(syn::parse_str::<Attr>("eq").unwrap(), Attr::Eq);
+        assert!(syn::parse_str::<Attr>("eq = true").is_err());
+
+        let attr: syn::Attribute = syn::parse_quote!(#[holder(eq)]);
+        assert!(HolderAttr::parse(&[attr]).derive_eq);
     }
 
     #[test]
