@@ -98,6 +98,11 @@ impl ser::Serializer for &mut RecordSerializer {
     }
 
     fn serialize_f64(self, v: f64) -> Result<()> {
+        if !v.is_finite() {
+            return Err(Error::UnsupportedSerialization(
+                "non-finite real number",
+            ));
+        }
         self.parameters.push(Parameter::Real(v));
         Ok(())
     }
@@ -207,7 +212,12 @@ impl ser::Serializer for &mut RecordSerializer {
     ) -> Result<Self::SerializeStruct> {
         // Rust's serde names are commonly PascalCase; Part 21 records use
         // uppercase keywords with underscores, also for nested typed values.
-        let name = name.to_screaming_snake_case();
+        let name = if let Some(extension) = name.strip_prefix('!') {
+            // A user-defined STEP keyword retains its '!' identity.
+            format!("!{}", extension.to_screaming_snake_case())
+        } else {
+            name.to_screaming_snake_case()
+        };
         if self.name.is_empty() {
             self.name = name;
         } else {
@@ -457,6 +467,20 @@ mod tests {
         );
     }
 
+    #[derive(Serialize)]
+    #[serde(rename = "XYZ2_3D")]
+    struct ExplicitlyRenamed {
+        flag: bool,
+    }
+
+    #[test]
+    fn explicit_step_keyword_names_survive_serialization_unchanged() {
+        use std::str::FromStr;
+        let original = crate::ast::Record::from_str("XYZ2_3D(.T.)").unwrap();
+        let rendered = to_record(&ExplicitlyRenamed { flag: true }).unwrap();
+        assert_eq!(rendered.name, original.name);
+    }
+
     #[test]
     fn top_level_primitives_cannot_be_step_records() {
         for error in [
@@ -471,6 +495,39 @@ mod tests {
                 )
             ));
         }
+    }
+
+    #[derive(Serialize)]
+    struct WithReal {
+        value: f64,
+    }
+
+    #[test]
+    fn nonfinite_reals_are_unrepresentable_in_step() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(matches!(
+                to_record(&WithReal { value }),
+                Err(Error::UnsupportedSerialization("non-finite real number"))
+            ));
+        }
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename = "!CUSTOM_1")]
+    struct UserDefined {
+        value: i64,
+    }
+
+    #[test]
+    fn explicitly_renamed_user_defined_keywords_round_trip() {
+        use std::str::FromStr;
+
+        let record = to_record(&UserDefined { value: 2 }).unwrap();
+        assert_eq!(record.name, "!CUSTOM_1");
+        assert_eq!(
+            record,
+            crate::ast::Record::from_str("!CUSTOM_1(2)").unwrap()
+        );
     }
 
     #[test]

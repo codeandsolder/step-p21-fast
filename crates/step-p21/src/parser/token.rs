@@ -86,12 +86,21 @@ pub fn real(input: &str) -> ParseResult<'_, f64> {
     // parser's grammar; preserve the original normalization for those cases.
     let token = &input[..input.len() - rest.len()];
     if let Ok(number) = token.parse::<f64>() {
-        return Ok((rest, number));
+        return finite_real(rest, number);
     }
     let number = format!("{integral}.{fractional}e{}", exp.unwrap_or(0))
         .parse::<f64>()
         .map_err(|_| numeric_error(rest, "invalid-real"))?;
-    Ok((rest, if sign == Some('-') { -number } else { number }))
+    finite_real(rest, if sign == Some('-') { -number } else { number })
+}
+
+/// Never turn an out-of-range STEP decimal into an infinite coordinate.
+fn finite_real(rest: &str, number: f64) -> ParseResult<'_, f64> {
+    if number.is_finite() {
+        Ok((rest, number))
+    } else {
+        Err(numeric_error(rest, "real-out-of-range"))
+    }
 }
 
 /// Parse a STEP string, including its doubled-apostrophe escape syntax.
@@ -294,14 +303,18 @@ pub fn keyword(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn standard_keyword(input: &str) -> ParseResult<'_, String> {
+    let (rest, keyword) = standard_keyword_span(input)?;
+    Ok((rest, keyword.to_owned()))
+}
+
+/// Return the source span so both keyword forms allocate exactly once.
+fn standard_keyword_span(input: &str) -> ParseResult<'_, &str> {
     let (rest, _) = upper(input)?;
     let (rest, _) = nom::bytes::complete::take_while(
         |c: char| matches!(c, 'A'..='Z' | '_' | '0'..='9'),
     )
     .parse(rest)?;
-    // Preserve the exact identifier (including underscores) with one string
-    // allocation, instead of allocating Vec<char> and then another String.
-    Ok((rest, input[..input.len() - rest.len()].to_owned()))
+    Ok((rest, &input[..input.len() - rest.len()]))
 }
 
 /// `user_defined_keyword` = `!` [upper] { [upper] | [digit] } .
@@ -310,9 +323,11 @@ pub fn standard_keyword(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn user_defined_keyword(input: &str) -> ParseResult<'_, String> {
-    tuple((char('!'), standard_keyword))
-        .map(|(_e, name)| name)
-        .parse(input)
+    let (rest, _) = char('!')(input)?;
+    let (rest, _) = standard_keyword_span(rest)?;
+    // The leading '!' is part of the identifier. Removing it aliases a
+    // user-defined type with a standard type of the same spelling.
+    Ok((rest, input[..input.len() - rest.len()].to_owned()))
 }
 
 /// `tag_name` = ( [upper] | [lower] ) { [upper] | [lower] | [digit] } .
@@ -373,6 +388,15 @@ mod tests {
     }
 
     #[test]
+    fn real_exponents_that_overflow_f64_return_errors() {
+        for input in ["1.0E309", "-1.0E400", "- 1.0E400"] {
+            assert!(super::real(input).is_err(), "input: {input}");
+        }
+        let (_, finite) = super::real("1.7976931348623157E308").unwrap();
+        assert!(finite.is_finite());
+    }
+
+    #[test]
     fn integer_boundaries_and_overflow_are_errors_not_panics() {
         for (input, expected) in [
             ("0", 0),
@@ -406,7 +430,7 @@ mod tests {
                 "B_SPLINE_SURFACE_WITH_KNOTS012",
             ),
             ("A0_", "", "A0_"),
-            ("!CUSTOM_1(", "(", "CUSTOM_1"),
+            ("!CUSTOM_1(", "(", "!CUSTOM_1"),
             ("_1_2.", ".", "_1_2"),
         ] {
             let (remainder, parsed) = super::keyword(input).unwrap();
@@ -416,6 +440,15 @@ mod tests {
         assert!(super::standard_keyword("0KEY").is_err());
         assert!(super::standard_keyword("lower").is_err());
         assert!(super::keyword("!0NAME").is_err());
+    }
+
+    #[test]
+    fn user_defined_record_keyword_is_distinct_from_standard_keyword() {
+        let user: crate::ast::Record = "!CUSTOM_1(1)".parse().unwrap();
+        let standard: crate::ast::Record = "CUSTOM_1(1)".parse().unwrap();
+        assert_eq!(user.name, "!CUSTOM_1");
+        assert_eq!(standard.name, "CUSTOM_1");
+        assert_ne!(user.name, standard.name);
     }
 
     #[test]
