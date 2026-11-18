@@ -85,3 +85,36 @@ fn named_and_tuple_visitors_report_truncated_sequences() {
     assert!(named_error.is_err());
     assert!(tuple_error.is_err());
 }
+
+#[test]
+fn entity_ids_must_be_unique_across_distinct_table_fields() {
+    // STEP instance identifiers are file-wide, not scoped to entity types.
+    let result =
+        "DATA; #1=ALPHA(10); #1=BETA(2.5); ENDSEC;".parse::<PositionalTable>();
+    assert!(matches!(result, Err(Error::DuplicatedEntity(1))));
+}
+
+#[test]
+fn entity_ids_must_be_unique_across_appended_sections() {
+    use step_p21::{ast::DataSection, tables::TableInit};
+
+    for duplicate_id in ["#1", "#0001"] {
+        let mut table = PositionalTable::default();
+        table
+            .append_data_section(
+                &"DATA; #1=ALPHA(10); ENDSEC;"
+                    .parse::<DataSection>()
+                    .unwrap(),
+            )
+            .unwrap();
+        let duplicate = format!("DATA; {duplicate_id}=BETA(2.5); ENDSEC;")
+            .parse::<DataSection>()
+            .unwrap();
+        assert!(matches!(
+            table.append_data_section(&duplicate),
+            Err(Error::DuplicatedEntity(1))
+        ));
+        assert_eq!(table.0.get(&1), Some(&AlphaHolder { value: 10 }));
+        assert!(table.1.is_empty());
+    }
+}

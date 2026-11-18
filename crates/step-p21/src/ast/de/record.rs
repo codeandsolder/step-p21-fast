@@ -177,6 +177,12 @@ impl<'de> de::MapAccess<'de> for RecordStructDeserializer<'_> {
             ));
         }
         let Some(field) = self.fields.get(self.cursor) else {
+            if self.cursor != self.parameters.len() {
+                return Err(de::Error::invalid_length(
+                    self.parameters.len(),
+                    &"the exact STEP struct field count",
+                ));
+            }
             return Ok(None);
         };
         self.awaiting_value = true;
@@ -222,6 +228,24 @@ mod tests {
         assert_eq!(access.next_value::<i64>().unwrap(), 3);
         assert_eq!(access.next_key::<String>().unwrap(), None);
         assert!(access.next_value::<i64>().is_err());
+    }
+
+    #[test]
+    fn extra_step_arguments_are_not_silently_ignored() {
+        use serde::Deserialize;
+
+        #[derive(Debug, Deserialize)]
+        #[serde(rename = "A")]
+        struct Strict {
+            x: i64,
+            y: i64,
+        }
+
+        let extra: Record = "A(1, 2, 3)".parse().unwrap();
+        assert!(Strict::deserialize(&extra).is_err());
+        let valid: Record = "A(1, 2)".parse().unwrap();
+        let decoded = Strict::deserialize(&valid).unwrap();
+        assert_eq!((decoded.x, decoded.y), (1, 2));
     }
 
     #[test]

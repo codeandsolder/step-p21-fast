@@ -184,3 +184,13 @@ fn trailing_step_input_error_reports_only_the_unconsumed_suffix() {
         Err(step_p21::error::Error::ExtraInputRemaining(rest)) if rest == "TRAILING"
     ));
 }
+
+#[test]
+fn named_table_rejects_duplicate_ids_between_entity_types() {
+    let result =
+        Tables::from_str("DATA; #1=A(1.0, 2.0); #1=B(3.0, #1); ENDSEC;");
+    assert!(matches!(
+        result,
+        Err(step_p21::error::Error::DuplicatedEntity(1))
+    ));
+}

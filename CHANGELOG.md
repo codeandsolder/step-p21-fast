@@ -1,5 +1,16 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- Enforce file-wide instance ID uniqueness in generated named and positional
+  `TableInit` implementations, including appended DATA sections, rather
+  than checking only within each EXPRESS entity type's map.
+- Reject surplus positional attributes when deserializing STEP records into
+  ordinary Serde structs instead of silently discarding their data.
+- Reject finite-range overflow in STEP real-number parsing and refuse to
+  serialize NaN or infinity as unrepresentable real parameters.
+- **Breaking semantic correction:** retain the `!` prefix of user-defined
+  STEP keywords in both parsing and serialization; `Record::name` now
+  distinguishes `!CUSTOM` from standard `CUSTOM` instead of aliasing them.
+
 - Recognize ignorable STEP comments by borrowing their original source text;
   preserve the public comment parser's owned return type while avoiding
   temporary character-vector and string allocations on the common parse path.
