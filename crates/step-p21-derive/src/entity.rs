@@ -1,12 +1,11 @@
 use inflector::Inflector;
 use proc_macro_error2::{OptionExt, ResultExt};
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
-use super::{
-    FieldType, HolderAttr, abort_call_site, as_holder_ident, as_holder_visitor,
-    as_visitor_ident, serde_crate, step_p21_crate,
-};
+use crate::holder_codegen;
+
+use super::{FieldType, HolderAttr, as_holder_ident, step_p21_crate};
 
 pub fn derive_deserialize(
     ident: &syn::Ident,
@@ -30,11 +29,11 @@ pub fn derive_holder(
     let holder_ident = as_holder_ident(ident);
     let def_holder_tt = def_holder(ident, st);
     let impl_holder_tt = impl_holder(ident, attr, st);
-    let impl_entity_table_tt = impl_entity_table(ident, attr);
+    let impl_entity_table_tt = holder_codegen::impl_entity_table(ident, attr);
     if attr.generate_deserialize {
         let def_visitor_tt = def_visitor(&holder_ident, &name, st);
         let impl_deserialize_tt = impl_deserialize(&holder_ident, &name, st);
-        let impl_with_visitor_tt = impl_with_visitor(ident);
+        let impl_with_visitor_tt = holder_codegen::impl_with_visitor(ident);
         quote! {
             #def_holder_tt
             #impl_holder_tt
@@ -52,11 +51,6 @@ pub fn derive_holder(
     }
 }
 
-/// This must be same between codegens
-fn table_arg() -> syn::Ident {
-    syn::Ident::new("table", Span::call_site())
-}
-
 struct FieldEntries {
     attributes: Vec<syn::Ident>,
     holder_types: Vec<syn::Type>,
@@ -65,7 +59,7 @@ struct FieldEntries {
 
 impl FieldEntries {
     fn parse(st: &syn::DataStruct) -> Self {
-        let table_arg = table_arg();
+        let table_arg = holder_codegen::table_arg();
 
         let mut attributes = Vec::new();
         let mut holder_types = Vec::new();
@@ -85,25 +79,12 @@ impl FieldEntries {
             let HolderAttr { place_holder, .. } =
                 HolderAttr::parse(&field.attrs);
             if place_holder {
-                match &ft {
-                    FieldType::Path(_) => {
-                        into_owned.push(
-                            quote! { #ident: #ident.into_owned(#table_arg)? },
-                        );
-                    }
-                    FieldType::Optional(_) => {
-                        into_owned.push(quote! { #ident: #ident.map(|holder| holder.into_owned(#table_arg)).transpose()? });
-                    }
-                    FieldType::List(_) => into_owned.push(quote! {
-                        #ident: #ident
-                            .into_iter()
-                            .map(|v| v.into_owned(#table_arg))
-                            .collect::<::std::result::Result<Vec<_>, _>>()?
-                    }),
-                    FieldType::Boxed(_) => {
-                        abort_call_site!("Unexpected Box<T>")
-                    }
-                }
+                let owned = holder_codegen::into_owned_value(
+                    &ft,
+                    quote!(#ident),
+                    &table_arg,
+                );
+                into_owned.push(quote! { #ident: #owned });
                 holder_types.push(ft.into_holder().into_place_holder().into());
             } else {
                 into_owned.push(quote! { #ident });
@@ -148,7 +129,7 @@ pub fn impl_holder(
     } = FieldEntries::parse(st);
     let attr_len = attributes.len();
     let HolderAttr { table, .. } = table;
-    let table_arg = table_arg();
+    let table_arg = holder_codegen::table_arg();
     let step_p21 = step_p21_crate();
 
     quote! {
@@ -175,119 +156,21 @@ pub fn impl_holder(
     } // quote!
 }
 
-pub fn impl_entity_table(
-    ident: &syn::Ident,
-    table: &HolderAttr,
-) -> TokenStream2 {
-    let HolderAttr { table, field, .. } = table;
-    let holder_ident = as_holder_ident(ident);
-    let step_p21 = step_p21_crate();
-
-    quote! {
-        #[automatically_derived]
-        impl #step_p21::tables::EntityTable<#holder_ident> for #table {
-            fn get_owned(&self, entity_id: u64) -> #step_p21::error::Result<#ident> {
-                #step_p21::tables::get_owned(self, &self.#field, entity_id)
-            }
-            fn owned_iter<'table>(&'table self) -> Box<dyn Iterator<Item = #step_p21::error::Result<#ident>> + 'table> {
-                #step_p21::tables::owned_iter(self, &self.#field)
-            }
-        }
-    }
-}
-
-// `name` may be different from `ident`
-// because this will be used for both Entity struct and its `*Holder` struct.
+// Different constructors, one shared visitor implementation.
 fn def_visitor(
     ident: &syn::Ident,
     name: &str,
     st: &syn::DataStruct,
 ) -> TokenStream2 {
-    let visitor_ident = as_visitor_ident(ident);
     let FieldEntries { attributes, .. } = FieldEntries::parse(st);
-    let attr_len = attributes.len();
-    let serde = serde_crate();
-    quote! {
-        #[doc(hidden)]
-        pub struct #visitor_ident;
-
-        #[automatically_derived]
-        impl<'de> #serde::de::Visitor<'de> for #visitor_ident {
-            type Value = #ident;
-            fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                write!(formatter, #name)
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> ::std::result::Result<Self::Value, A::Error>
-            where
-                A: #serde::de::SeqAccess<'de>,
-            {
-                if let Some(size) = seq.size_hint() {
-                    if size != #attr_len {
-                        use #serde::de::Error;
-                        return Err(A::Error::invalid_length(size, &self));
-                    }
-                }
-                #( let #attributes = seq.next_element()?.unwrap(); )*
-                Ok(#ident { #(#attributes),* })
-            }
-
-            // Entry point for Record or Parameter::Typed
-            fn visit_map<A>(self, mut map: A) -> ::std::result::Result<Self::Value, A::Error>
-            where
-                A: #serde::de::MapAccess<'de>,
-            {
-                let key: String = map
-                    .next_key()?
-                    .expect("Empty map cannot be accepted as step_p21 Holder"); // this must be a bug, not runtime error
-                if key != #name {
-                    use #serde::de::{Error, Unexpected};
-                    return Err(A::Error::invalid_value(Unexpected::Other(&key), &self));
-                }
-                let value = map.next_value()?; // send to Self::visit_seq
-                Ok(value)
-            }
-        }
-    } // quote!
+    let construct = quote! { #ident { #(#attributes),* } };
+    holder_codegen::def_visitor(ident, name, &attributes, &construct)
 }
 
-// `name` may be different from `ident`
-// because this will be used for both Entity struct and its `*Holder` struct.
 fn impl_deserialize(
     ident: &syn::Ident,
     name: &str,
     st: &syn::DataStruct,
 ) -> TokenStream2 {
-    let visitor_ident = as_visitor_ident(ident);
-    let FieldEntries { attributes, .. } = FieldEntries::parse(st);
-    let attr_len = attributes.len();
-    let serde = serde_crate();
-    quote! {
-        #[automatically_derived]
-        impl<'de> #serde::de::Deserialize<'de> for #ident {
-            fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
-            where
-                D: #serde::de::Deserializer<'de>,
-            {
-                deserializer.deserialize_tuple_struct(#name, #attr_len, #visitor_ident {})
-            }
-        }
-    } // quote!
-}
-
-fn impl_with_visitor(ident: &syn::Ident) -> TokenStream2 {
-    let step_p21 = step_p21_crate();
-
-    let visitor_ident = as_holder_visitor(ident);
-    let holder_ident = as_holder_ident(ident);
-
-    quote! {
-        #[automatically_derived]
-        impl #step_p21::tables::WithVisitor for #holder_ident {
-            type Visitor = #visitor_ident;
-            fn visitor_new() -> Self::Visitor {
-                #visitor_ident {}
-            }
-        }
-    } // quote!
+    holder_codegen::impl_deserialize(ident, name, st.fields.len())
 }

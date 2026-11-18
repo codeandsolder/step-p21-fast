@@ -12,7 +12,7 @@ use proc_macro_error2::abort;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HolderAttr {
     pub table: Option<syn::Path>,
-    pub field: Option<syn::Ident>,
+    pub field: Option<syn::Member>,
     pub place_holder: bool,
     pub generate_deserialize: bool,
 }
@@ -63,7 +63,7 @@ impl HolderAttr {
 #[derive(Debug, PartialEq)]
 enum Attr {
     Table(syn::Path),
-    Field(syn::Ident),
+    Field(syn::Member),
     PlaceHolder,
     GenerateDeserialize,
 }
@@ -79,8 +79,8 @@ impl syn::parse::Parse for Attr {
             }
             "field" => {
                 let _eq: syn::Token![=] = input.parse()?;
-                let ident = input.parse()?;
-                Ok(Self::Field(ident))
+                let member = input.parse()?;
+                Ok(Self::Field(member))
             }
             "use_place_holder" => Ok(Self::PlaceHolder),
             "generate_deserialize" => Ok(Self::GenerateDeserialize),
@@ -119,9 +119,12 @@ mod tests {
         let attr: Attr = syn::parse_str("field = a").unwrap();
         assert_eq!(attr, Attr::Field(syn::parse_str("a").unwrap()));
 
+        let attr: Attr = syn::parse_str("field = 1").unwrap();
+        assert_eq!(attr, Attr::Field(syn::parse_str("1").unwrap()));
+
         // field cannot accept path
         assert!(syn::parse_str::<Attr>("field = ::some::path").is_err());
-        // field must take identifier
+        // field must take an identifier or a positional index
         assert!(syn::parse_str::<Attr>("field").is_err());
         // identifier is empty
         assert!(syn::parse_str::<Attr>("field =").is_err());
