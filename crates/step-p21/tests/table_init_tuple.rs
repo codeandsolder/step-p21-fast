@@ -1,7 +1,10 @@
 //! Check the shared `TableInit` generator for positional maps and holder
 //! variants.
 
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, hash_map::DefaultHasher},
+    hash::BuildHasherDefault,
+};
 
 use step_p21::{ast::Record, error::Error, tables::EntityTable};
 use step_p21_derive::{Holder, TableInit};
@@ -30,7 +33,7 @@ pub struct Measurement(pub i64, pub f64);
 
 #[derive(Default, TableInit)]
 pub struct PositionalTable(
-    pub HashMap<u64, AlphaHolder>,
+    pub HashMap<u64, AlphaHolder, BuildHasherDefault<DefaultHasher>>,
     pub HashMap<u64, BetaHolder>,
     pub HashMap<u64, MeasurementHolder>,
 );
