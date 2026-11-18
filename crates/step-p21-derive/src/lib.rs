@@ -138,6 +138,11 @@ fn derive_deserialize(ast: &syn::DeriveInput) -> TokenStream2 {
 /// - `#[holder(use_place_holder)]`
 ///   - This can be both in field or variant attribute
 ///   - Specify the field is not a simple type
+/// - `#[holder(eq)]`
+///   - This is a container attribute
+///   - Derive `Eq` for the generated `Holder` type when its fields implement
+///     `Eq`.
+///   - The macro cannot infer a sibling `#[derive(Eq)]` on the source type.
 #[proc_macro_error]
 #[proc_macro_derive(Holder, attributes(holder))]
 pub fn derive_holder_entry(input: TokenStream) -> TokenStream {
@@ -147,18 +152,21 @@ pub fn derive_holder_entry(input: TokenStream) -> TokenStream {
 
 fn derive_holder(ast: &syn::DeriveInput) -> TokenStream2 {
     let attr = HolderAttr::parse(&ast.attrs);
+    let derive_eq = attr.derive_eq;
     let ident = &ast.ident;
     match &ast.data {
         syn::Data::Struct(st) => match st.fields {
-            syn::Fields::Named(_) => entity::derive_holder(ident, st, &attr),
+            syn::Fields::Named(_) => {
+                entity::derive_holder(ident, st, &attr, derive_eq)
+            }
             syn::Fields::Unnamed(_) => {
-                type_decl::derive_holder(ident, st, &attr)
+                type_decl::derive_holder(ident, st, &attr, derive_eq)
             }
             syn::Fields::Unit => {
                 abort_call_site!("Unit struct is not supported.")
             }
         },
-        syn::Data::Enum(e) => select::derive_holder(ident, e, &attr),
+        syn::Data::Enum(e) => select::derive_holder(ident, e, &attr, derive_eq),
         syn::Data::Union(_) => {
             abort_call_site!("only structs and enums are supported")
         }

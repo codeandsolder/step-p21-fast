@@ -1,5 +1,9 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- Add explicit `#[holder(eq)]` support to generate `Eq` for named,
+  tuple, and enum holders when their fields permit it; no `Eq` is imposed on
+  floating-point holders. This fixes strict Clippy warnings in downstream CAD crates.
+
 - [#8](https://github.com/codeandsolder/step-p21-fast/pull/8): Deduplicate
   ENTITY and tuple TYPE holder visitor/table code generation and unify
   `TableInit` dispatch; return Serde errors for malformed records and support
