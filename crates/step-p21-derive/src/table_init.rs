@@ -95,7 +95,7 @@ pub fn derive_table_init(ast: &syn::DeriveInput) -> TokenStream2 {
     }
 }
 
-/// A positional table field has a concrete HashMap<entity_id, Holder, S>
+/// A positional table field has a concrete `HashMap<u64, Holder, S>`
 /// type; retain arbitrary hasher support while extracting its Holder type.
 /// Avoid reconstructing entity names from Rust type spelling.
 fn holder_type(ty: &syn::Type) -> &syn::Type {

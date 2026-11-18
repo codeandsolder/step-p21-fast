@@ -13,12 +13,12 @@ use crate::{
     holder_attr::HolderAttr,
 };
 
-pub(super) fn table_arg() -> syn::Ident {
+pub fn table_arg() -> syn::Ident {
     syn::Ident::new("table", Span::call_site())
 }
 
 /// Produce the same reference resolution contract for named and tuple holders.
-pub(super) fn impl_entity_table(
+pub fn impl_entity_table(
     ident: &syn::Ident,
     attr: &HolderAttr,
 ) -> TokenStream2 {
@@ -39,7 +39,7 @@ pub(super) fn impl_entity_table(
     }
 }
 
-pub(super) fn impl_with_visitor(ident: &syn::Ident) -> TokenStream2 {
+pub fn impl_with_visitor(ident: &syn::Ident) -> TokenStream2 {
     let step_p21 = step_p21_crate();
     let visitor_ident = as_holder_visitor(ident);
     let holder_ident = as_holder_ident(ident);
@@ -55,7 +55,7 @@ pub(super) fn impl_with_visitor(ident: &syn::Ident) -> TokenStream2 {
     }
 }
 
-pub(super) fn impl_deserialize(
+pub fn impl_deserialize(
     ident: &syn::Ident,
     name: &str,
     field_count: usize,
@@ -77,7 +77,7 @@ pub(super) fn impl_deserialize(
 
 /// Only the final constructor differs between named and tuple records. The
 /// tuple/map visitor and all of its error reporting should stay identical.
-pub(super) fn def_visitor(
+pub fn def_visitor(
     ident: &syn::Ident,
     name: &str,
     attributes: &[syn::Ident],
@@ -136,9 +136,9 @@ pub(super) fn def_visitor(
 
 /// Normalize the shared placeholder conversion for all field shapes; only
 /// the field access and final struct construction differ.
-pub(super) fn into_owned_value(
+pub fn into_owned_value(
     field_type: &FieldType,
-    value: TokenStream2,
+    value: &TokenStream2,
     table: &syn::Ident,
 ) -> TokenStream2 {
     match field_type {

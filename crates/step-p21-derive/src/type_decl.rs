@@ -131,7 +131,7 @@ impl FieldEntries {
             if place_holder {
                 into_owned.push(holder_codegen::into_owned_value(
                     &ft,
-                    quote!(self.#index),
+                    &quote!(self.#index),
                     &table_arg,
                 ));
                 holder_types.push(ft.into_holder().into_place_holder().into());

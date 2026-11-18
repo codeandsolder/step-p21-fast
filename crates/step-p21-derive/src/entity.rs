@@ -81,7 +81,7 @@ impl FieldEntries {
             if place_holder {
                 let owned = holder_codegen::into_owned_value(
                     &ft,
-                    quote!(#ident),
+                    &quote!(#ident),
                     &table_arg,
                 );
                 into_owned.push(quote! { #ident: #owned });
