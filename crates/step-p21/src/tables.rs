@@ -233,13 +233,14 @@ pub fn insert_record<'de, T: de::Deserialize<'de>>(
     id: u64,
     record: &Record,
 ) -> crate::error::Result<()> {
-    if table
-        .insert(id, de::Deserialize::deserialize(record)?)
-        .is_some()
-    {
-        Err(Error::DuplicatedEntity(id))
-    } else {
-        Ok(())
+    match table.entry(id) {
+        std::collections::hash_map::Entry::Vacant(slot) => {
+            slot.insert(de::Deserialize::deserialize(record)?);
+            Ok(())
+        }
+        std::collections::hash_map::Entry::Occupied(_) => {
+            Err(Error::DuplicatedEntity(id))
+        }
     }
 }
 
@@ -380,7 +381,10 @@ impl<'de, T: Deserialize<'de> + Holder + WithVisitor> de::Visitor<'de>
                 let name: String = variant.newtype_variant()?;
                 Ok(PlaceHolder::Ref(Name::ConstantValue(name)))
             }
-            _ => unreachable!("Invalid key while deserializing PlaceHolder"),
+            _ => Err(de::Error::unknown_variant(
+                &key,
+                &["Entity", "Value", "ConstantEntity", "ConstantValue"],
+            )),
         }
     }
 

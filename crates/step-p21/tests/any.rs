@@ -254,3 +254,12 @@ fn as_ref_base_any() {
     let sub3 = EntityTable::<Sub2Holder>::get_owned(&table, 3).unwrap();
     assert_eq!(sub3.as_ref(), &Base { x: 1.0 });
 }
+
+#[test]
+fn empty_map_is_an_error_for_generated_select_visitor() {
+    use serde::de::{Visitor, value::MapDeserializer};
+
+    let empty = std::iter::empty::<(String, i64)>();
+    let map = MapDeserializer::<_, step_p21::error::Error>::new(empty);
+    assert!(BaseAnyHolderVisitor.visit_map(map).is_err());
+}

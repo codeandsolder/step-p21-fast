@@ -156,3 +156,31 @@ fn get_owned_b3() {
         }
     );
 }
+
+#[test]
+fn duplicate_entity_insertion_preserves_the_original_record() {
+    use std::collections::HashMap;
+
+    let first = Record::from_str("A(1, 2)").unwrap();
+    let duplicate = Record::from_str("A(99)").unwrap();
+    let incompatible = Record::from_str("A('not-an-integer')").unwrap();
+
+    let mut table: HashMap<u64, HashMap<String, Vec<i64>>> = HashMap::new();
+    insert_record(&mut table, 7, &first).unwrap();
+
+    for record in [&duplicate, &incompatible] {
+        assert!(matches!(
+            insert_record(&mut table, 7, record),
+            Err(step_p21::error::Error::DuplicatedEntity(7))
+        ));
+    }
+    assert_eq!(table[&7]["A"], [1, 2]);
+}
+
+#[test]
+fn trailing_step_input_error_reports_only_the_unconsumed_suffix() {
+    assert!(matches!(
+        Record::from_str("A(1, 2)TRAILING"),
+        Err(step_p21::error::Error::ExtraInputRemaining(rest)) if rest == "TRAILING"
+    ));
+}

@@ -44,7 +44,8 @@ impl<'de> de::Deserializer<'de> for &Record {
 #[derive(Debug)]
 pub struct RecordDeserializer<'record> {
     key: Option<&'record str>,
-    value: &'record Parameter,
+    value: Option<&'record Parameter>,
+    awaiting_value: bool,
 }
 
 impl<'de> de::Deserializer<'de> for RecordDeserializer<'_> {
@@ -69,7 +70,8 @@ impl<'record> RecordDeserializer<'record> {
     pub const fn new(key: &'record str, value: &'record Parameter) -> Self {
         RecordDeserializer {
             key: Some(key),
-            value,
+            value: Some(value),
+            awaiting_value: false,
         }
     }
 }
@@ -85,22 +87,36 @@ impl<'de> de::MapAccess<'de> for RecordDeserializer<'_> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        if let Some(key) = self.key.take() {
-            let key: de::value::StrDeserializer<Self::Error> =
-                key.into_deserializer();
-            let key: K::Value = seed.deserialize(key)?;
-            Ok(Some(key))
-        } else {
-            Ok(None)
+        if self.awaiting_value {
+            return Err(<Self::Error as de::Error>::custom(
+                "previous STEP record value was not consumed",
+            ));
         }
+        let Some(key) = self.key.take() else {
+            return Ok(None);
+        };
+        self.awaiting_value = true;
+        let key: de::value::StrDeserializer<Self::Error> =
+            key.into_deserializer();
+        seed.deserialize(key).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value: V::Value = seed.deserialize(self.value)?;
-        Ok(value)
+        if !self.awaiting_value {
+            return Err(<Self::Error as de::Error>::custom(
+                "STEP record value requested without a key",
+            ));
+        }
+        self.awaiting_value = false;
+        let value = self.value.take().ok_or_else(|| {
+            <Self::Error as de::Error>::custom(
+                "STEP record value already consumed",
+            )
+        })?;
+        seed.deserialize(value)
     }
 }
 
@@ -110,6 +126,7 @@ pub struct RecordStructDeserializer<'a> {
     cursor: usize,
     fields: &'a [&'static str],
     parameters: &'a [Parameter],
+    awaiting_value: bool,
 }
 
 impl<'a> RecordStructDeserializer<'a> {
@@ -122,6 +139,7 @@ impl<'a> RecordStructDeserializer<'a> {
             cursor: 0,
             fields,
             parameters,
+            awaiting_value: false,
         }
     }
 }
@@ -153,24 +171,67 @@ impl<'de> de::MapAccess<'de> for RecordStructDeserializer<'_> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        if self.cursor < self.fields.len() {
-            let key: de::value::StrDeserializer<Self::Error> =
-                self.fields[self.cursor].into_deserializer();
-            let key: K::Value = seed.deserialize(key)?;
-            Ok(Some(key))
-        } else {
-            Ok(None)
+        if self.awaiting_value {
+            return Err(<Self::Error as de::Error>::custom(
+                "previous STEP struct field value was not consumed",
+            ));
         }
+        let Some(field) = self.fields.get(self.cursor) else {
+            return Ok(None);
+        };
+        self.awaiting_value = true;
+        let key: de::value::StrDeserializer<Self::Error> =
+            field.into_deserializer();
+        seed.deserialize(key).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where
         V: de::DeserializeSeed<'de>,
     {
-        assert!(self.cursor < self.parameters.len());
-        let value: V::Value =
-            seed.deserialize(&self.parameters[self.cursor])?;
+        if !self.awaiting_value {
+            return Err(<Self::Error as de::Error>::custom(
+                "STEP struct field value requested without a key",
+            ));
+        }
+        self.awaiting_value = false;
+        let Some(value) = self.parameters.get(self.cursor) else {
+            return Err(de::Error::invalid_length(
+                self.cursor,
+                &"a STEP struct field value",
+            ));
+        };
+        let value = seed.deserialize(value)?;
         self.cursor += 1;
         Ok(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::de::MapAccess;
+
+    #[test]
+    fn record_mapping_consumes_each_key_and_value_exactly_once() {
+        let param = Parameter::Integer(3);
+        let mut access = RecordDeserializer::new("A", &param);
+        assert!(access.next_value::<i64>().is_err());
+        assert_eq!(access.next_key::<String>().unwrap(), Some("A".to_owned()));
+        assert!(access.next_key::<String>().is_err());
+        assert_eq!(access.next_value::<i64>().unwrap(), 3);
+        assert_eq!(access.next_key::<String>().unwrap(), None);
+        assert!(access.next_value::<i64>().is_err());
+    }
+
+    #[test]
+    fn truncated_struct_fields_return_an_error_instead_of_panicking() {
+        let fields = ["x", "y"];
+        let parameters = [Parameter::Integer(1)];
+        let mut access = RecordStructDeserializer::new(&fields, &parameters);
+        assert_eq!(access.next_key::<String>().unwrap(), Some("x".to_owned()));
+        assert_eq!(access.next_value::<i64>().unwrap(), 1);
+        assert_eq!(access.next_key::<String>().unwrap(), Some("y".to_owned()));
+        assert!(access.next_value::<i64>().is_err());
     }
 }

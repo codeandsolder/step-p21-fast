@@ -23,15 +23,16 @@ impl<'de> de::Deserializer<'de> for &SubSuperRecord {
 
 #[derive(Debug)]
 pub struct SubSuperRecordDeserializer<'record> {
-    keywords: Vec<&'record str>,
-    parameters: Vec<&'record Parameter>,
+    remaining: &'record [Record],
+    pending_value: Option<&'record Parameter>,
 }
 
 impl<'record> SubSuperRecordDeserializer<'record> {
-    pub fn new(records: &'record [Record]) -> Self {
+    #[must_use]
+    pub const fn new(records: &'record [Record]) -> Self {
         Self {
-            keywords: records.iter().map(|x| x.name.as_str()).collect(),
-            parameters: records.iter().map(|x| &x.parameter).collect(),
+            remaining: records,
+            pending_value: None,
         }
     }
 }
@@ -47,25 +48,73 @@ impl<'de> de::MapAccess<'de> for SubSuperRecordDeserializer<'_> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        if let Some(key) = self.keywords.pop() {
-            let key: de::value::StrDeserializer<Self::Error> =
-                key.into_deserializer();
-            let key: K::Value = seed.deserialize(key)?;
-            Ok(Some(key))
-        } else {
-            Ok(None)
+        if self.pending_value.is_some() {
+            return Err(<Self::Error as de::Error>::custom(
+                "previous complex STEP record value was not consumed",
+            ));
         }
+        let Some((record, remaining)) = self.remaining.split_last() else {
+            return Ok(None);
+        };
+        // Preserve the original reverse record iteration without allocating
+        // parallel keyword and parameter vectors for every deserialization.
+        self.remaining = remaining;
+        self.pending_value = Some(&record.parameter);
+        let key: de::value::StrDeserializer<Self::Error> =
+            record.name.as_str().into_deserializer();
+        seed.deserialize(key).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where
         V: de::DeserializeSeed<'de>,
     {
-        if let Some(value) = self.parameters.pop() {
-            let value: V::Value = seed.deserialize(value)?;
-            Ok(value)
-        } else {
-            unreachable!()
-        }
+        let value = self.pending_value.take().ok_or_else(|| {
+            <Self::Error as de::Error>::custom(
+                "complex STEP record value requested without a key",
+            )
+        })?;
+        seed.deserialize(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::de::MapAccess;
+
+    #[test]
+    fn complex_records_deserialize_in_existing_reverse_order_without_allocations()
+     {
+        let records = [
+            Record {
+                name: "A".to_owned(),
+                parameter: Parameter::List(vec![Parameter::Integer(1)]),
+            },
+            Record {
+                name: "B".to_owned(),
+                parameter: Parameter::List(vec![Parameter::Integer(2)]),
+            },
+        ];
+        let mut access = SubSuperRecordDeserializer::new(&records);
+        assert_eq!(access.next_key::<String>().unwrap(), Some("B".to_owned()));
+        assert_eq!(access.next_value::<Vec<i64>>().unwrap(), vec![2]);
+        assert_eq!(access.next_key::<String>().unwrap(), Some("A".to_owned()));
+        assert_eq!(access.next_value::<Vec<i64>>().unwrap(), vec![1]);
+        assert_eq!(access.next_key::<String>().unwrap(), None);
+    }
+
+    #[test]
+    fn complex_records_reject_missing_key_or_unconsumed_value() {
+        let records = [Record {
+            name: "A".to_owned(),
+            parameter: Parameter::Integer(5),
+        }];
+        let mut access = SubSuperRecordDeserializer::new(&records);
+        assert!(access.next_value::<i64>().is_err());
+        assert_eq!(access.next_key::<String>().unwrap(), Some("A".to_owned()));
+        assert!(access.next_key::<String>().is_err());
+        assert_eq!(access.next_value::<i64>().unwrap(), 5);
+        assert_eq!(access.next_key::<String>().unwrap(), None);
     }
 }
