@@ -1,5 +1,5 @@
 use inflector::Inflector;
-use proc_macro_error2::{OptionExt, abort_call_site};
+use proc_macro_error2::{OptionExt, abort, abort_call_site};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
@@ -7,36 +7,48 @@ use crate::common::step_p21_crate;
 
 pub fn derive_table_init(ast: &syn::DeriveInput) -> TokenStream2 {
     let ident = &ast.ident;
-    match &ast.data {
-        syn::Data::Struct(st) => match st.fields {
-            syn::Fields::Named(_) => entity_impl_table_init(ident, st),
-            syn::Fields::Unnamed(_) => tuple_impl_table_init(ident, st),
-            syn::Fields::Unit => {
-                abort_call_site!("Unit struct is not supported.")
-            }
-        },
-        syn::Data::Union(_) | syn::Data::Enum(_) => {
-            abort_call_site!("TableInit only supports structs")
-        }
-    }
-}
+    let syn::Data::Struct(st) = &ast.data else {
+        abort_call_site!("TableInit only supports structs")
+    };
 
-fn entity_impl_table_init(
-    ident: &syn::Ident,
-    st: &syn::DataStruct,
-) -> TokenStream2 {
-    let mut table_names = Vec::new();
-    let mut entity_names = Vec::new();
-    for field in &st.fields {
-        let ident = field.ident.as_ref().expect_or_abort("unreachable!");
-        let name = ident.to_string().to_screaming_snake_case();
-        table_names.push(ident);
-        entity_names.push(name);
-    }
-    assert_eq!(table_names.len(), entity_names.len());
+    let dispatch = match &st.fields {
+        syn::Fields::Named(fields) => {
+            let arms = fields.named.iter().map(|field| {
+                let member = field.ident.as_ref().expect_or_abort("named table field");
+                let name = member.to_string().to_screaming_snake_case();
+                quote! { #name => { insert_record(&mut self.#member, *id, record)?; true }, }
+            });
+            quote! {
+                match record.name.as_str() {
+                    #(#arms)*
+                    _ => false,
+                }
+            }
+        }
+        syn::Fields::Unnamed(fields) => {
+            let step_p21 = step_p21_crate();
+            let entries = fields.unnamed.iter().enumerate().map(|(index, field)| {
+                let member = syn::Index::from(index);
+                let holder = holder_type(&field.ty);
+                quote! {
+                    if !matched && record.name == <#holder as #step_p21::tables::Holder>::name() {
+                        insert_record(&mut self.#member, *id, record)?;
+                        matched = true;
+                    }
+                }
+            });
+            // Associated Holder::name() gives the EXPRESS entity name
+            // regardless of how the table field type was spelled.
+            quote! {
+                let mut matched = false;
+                #(#entries)*
+                matched
+            }
+        }
+        syn::Fields::Unit => abort_call_site!("Unit struct is not supported."),
+    };
 
     let step_p21 = step_p21_crate();
-
     quote! {
         #[automatically_derived]
         impl #step_p21::tables::TableInit for #ident {
@@ -44,22 +56,26 @@ fn entity_impl_table_init(
                 &mut self,
                 data_sec: &#step_p21::ast::DataSection
             ) -> #step_p21::error::Result<()> {
-                use #step_p21::{error::Error, tables::insert_record, ast::EntityInstance};
+                use #step_p21::{
+                    error::Error,
+                    tables::insert_record,
+                    ast::EntityInstance,
+                };
                 for entity in &data_sec.entities {
                     match entity {
-                        EntityInstance::Simple { id, record } => match record.name.as_str() {
-                            #(
-                            #entity_names => insert_record(&mut self.#table_names, *id, record)?,
-                            )*
-                            _ => {
+                        EntityInstance::Simple { id, record } => {
+                            let recognized = { #dispatch };
+                            if !recognized {
                                 return Err(Error::UnknownEntityName {
                                     entity_name: record.name.clone(),
-                                    schema: "".to_string(),
+                                    schema: String::new(),
                                 });
                             }
-                        },
+                        }
                         EntityInstance::Complex { .. } => {
-                            unimplemented!("Complex entity is not supported")
+                            return Err(Error::DeserializeFailed(
+                                "TableInit does not support complex entity instances".to_owned()
+                            ));
                         }
                     }
                 }
@@ -79,60 +95,26 @@ fn entity_impl_table_init(
     }
 }
 
-fn tuple_impl_table_init(
-    ident: &syn::Ident,
-    st: &syn::DataStruct,
-) -> TokenStream2 {
-    let mut table_names = Vec::new();
-    let mut entity_names = Vec::new();
-    for field in &st.fields {
-        let ty = &field.ty;
-        let ident = quote! { #ty }.to_string().to_screaming_snake_case();
-        table_names.push(ident.clone());
-        entity_names.push(ident);
+/// A positional table field has a concrete `HashMap<u64, Holder, S>`
+/// type; retain arbitrary hasher support while extracting its Holder type.
+/// Avoid reconstructing entity names from Rust type spelling.
+fn holder_type(ty: &syn::Type) -> &syn::Type {
+    let syn::Type::Path(path) = ty else {
+        abort!(ty, "tuple TableInit fields must be HashMap<u64, Holder>")
+    };
+    let segment = path.path.segments.last().expect_or_abort("empty type path");
+    if segment.ident != "HashMap" {
+        abort!(
+            segment.ident,
+            "tuple TableInit fields must be HashMap<u64, Holder>"
+        )
     }
-    assert_eq!(table_names.len(), entity_names.len());
-
-    let step_p21 = step_p21_crate();
-
-    quote! {
-        #[automatically_derived]
-        impl #step_p21::tables::TableInit for #ident {
-            fn append_data_section(
-                &mut self,
-                data_sec: &#step_p21::ast::DataSection
-            ) -> #step_p21::error::Result<()> {
-                use #step_p21::{error::Error, tables::insert_record, ast::EntityInstance};
-                for entity in &data_sec.entities {
-                    match entity {
-                        EntityInstance::Simple { id, record } => match record.name.as_str() {
-                            #(
-                            #entity_names => insert_record(&mut self.#table_names, *id, record)?,
-                            )*
-                            _ => {
-                                return Err(Error::UnknownEntityName {
-                                    entity_name: record.name.clone(),
-                                    schema: "".to_string(),
-                                });
-                            }
-                        },
-                        EntityInstance::Complex { .. } => {
-                            unimplemented!("Complex entity is not supported")
-                        }
-                    }
-                }
-                Ok(())
-            }
-        }
-
-        #[automatically_derived]
-        impl ::std::str::FromStr for #ident {
-            type Err = #step_p21::error::Error;
-            fn from_str(input: &str) -> #step_p21::error::Result<Self> {
-                use #step_p21::{tables::TableInit, ast::DataSection};
-                let data_sec = DataSection::from_str(input)?;
-                Self::from_data_section(&data_sec)
-            }
-        }
-    }
+    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+        abort!(segment, "HashMap must have a key and holder value type")
+    };
+    let Some(syn::GenericArgument::Type(value)) = args.args.iter().nth(1)
+    else {
+        abort!(segment, "HashMap must have a holder value type")
+    };
+    value
 }

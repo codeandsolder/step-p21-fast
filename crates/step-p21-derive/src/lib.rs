@@ -29,13 +29,14 @@ mod common;
 mod entity;
 mod field_type;
 mod holder_attr;
+mod holder_codegen;
 mod select;
 mod table_init;
 mod type_decl;
 
 use common::{
-    as_holder_ident, as_holder_path, as_holder_visitor, as_visitor_ident,
-    itertools_crate, serde_crate, step_p21_crate,
+    as_holder_ident, as_holder_path, as_visitor_ident, itertools_crate,
+    serde_crate, step_p21_crate,
 };
 use field_type::FieldType;
 use holder_attr::HolderAttr;
@@ -128,7 +129,7 @@ fn derive_deserialize(ast: &syn::DeriveInput) -> TokenStream2 {
 /// - `#[holder(table = {path::to::table::struct})]`
 ///   - This must be a container attribute
 ///   - Specify a struct path which contains a table for this Holder
-/// - `#[holder(field = {field_ident})]`
+/// - `#[holder(field = {field_ident_or_position})]`
 ///   - This can be both in container or variant attribute
 ///   - Identifier of table field
 /// - `#[holder(generate_deserialize)]`
@@ -560,14 +561,18 @@ mod snapshot_tests {
             where
                 A: ::step_p21::serde::de::SeqAccess<'de>,
             {
+                use step_p21::serde::de::Error as _;
                 if let Some(size) = seq.size_hint() {
                     if size != 2usize {
-                        use step_p21::serde::de::Error;
                         return Err(A::Error::invalid_length(size, &self));
                     }
                 }
-                let base = seq.next_element()?.unwrap();
-                let y1 = seq.next_element()?.unwrap();
+                let base = seq
+                    .next_element()?
+                    .ok_or_else(|| A::Error::invalid_length(0usize, &self))?;
+                let y1 = seq
+                    .next_element()?
+                    .ok_or_else(|| A::Error::invalid_length(1usize, &self))?;
                 Ok(Sub1Holder { base, y1 })
             }
 
@@ -578,18 +583,17 @@ mod snapshot_tests {
             where
                 A: ::step_p21::serde::de::MapAccess<'de>,
             {
+                use step_p21::serde::de::{Error as _, Unexpected};
                 let key: String = map
                     .next_key()?
-                    .expect("Empty map cannot be accepted as step_p21 Holder");
+                    .ok_or_else(|| A::Error::invalid_length(0, &self))?;
                 if key != "SUB_1" {
-                    use step_p21::serde::de::{Error, Unexpected};
                     return Err(A::Error::invalid_value(
                         Unexpected::Other(&key),
                         &self,
                     ));
                 }
-                let value = map.next_value()?;
-                Ok(value)
+                map.next_value()
             }
         }
         #[automatically_derived]
@@ -613,6 +617,6 @@ mod snapshot_tests {
                 Sub1HolderVisitor {}
             }
         }
-        "#);
+"#);
     }
 }

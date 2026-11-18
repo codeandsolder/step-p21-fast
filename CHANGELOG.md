@@ -1,5 +1,10 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- [#8](https://github.com/codeandsolder/step-p21-fast/pull/8): Deduplicate
+  ENTITY and tuple TYPE holder visitor/table code generation and unify
+  `TableInit` dispatch; return Serde errors for malformed records and support
+  positional `HashMap` tables with indexed holder attributes.
+
 - Adopted pinned shared managed-sccache Rust CI, strict `rust-skills2` linting,
   fleet Renovate policy, a tracked lockfile, and EXPRESS AP201/AP203 grammar
   checks.
