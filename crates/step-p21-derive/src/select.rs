@@ -198,9 +198,9 @@ impl Input {
                 where
                     A: #serde::de::MapAccess<'de>,
                 {
-                    let key: String = map
-                        .next_key()?
-                        .expect("Empty map cannot be accepted as step_p21 Holder"); // this must be a bug, not runtime error
+                    let key: String = map.next_key()?.ok_or_else(|| {
+                        <A::Error as #serde::de::Error>::invalid_length(0, &self)
+                    })?;
                     match key.as_str() {
                         #(
                         #variant_names => {

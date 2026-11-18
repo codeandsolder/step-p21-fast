@@ -102,7 +102,7 @@ impl<'de> de::SeqAccess<'de> for SeqDeserializer<'_> {
     type Error = crate::error::Error;
 
     fn size_hint(&self) -> Option<usize> {
-        Some(self.parameters.len())
+        Some(self.parameters.len() - self.cursor)
     }
 
     fn next_element_seed<T>(
@@ -119,5 +119,23 @@ impl<'de> de::SeqAccess<'de> for SeqDeserializer<'_> {
         } else {
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::de::SeqAccess;
+
+    #[test]
+    fn size_hint_tracks_remaining_parameters() {
+        let parameters = [Parameter::Integer(1), Parameter::Integer(2)];
+        let mut access = SeqDeserializer::new(&parameters);
+        assert_eq!(access.size_hint(), Some(2));
+        assert_eq!(access.next_element::<i64>().unwrap(), Some(1));
+        assert_eq!(access.size_hint(), Some(1));
+        assert_eq!(access.next_element::<i64>().unwrap(), Some(2));
+        assert_eq!(access.size_hint(), Some(0));
+        assert_eq!(access.next_element::<i64>().unwrap(), None);
     }
 }

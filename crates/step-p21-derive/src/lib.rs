@@ -266,9 +266,9 @@ mod snapshot_tests {
             where
                 A: ::step_p21::serde::de::MapAccess<'de>,
             {
-                let key: String = map
-                    .next_key()?
-                    .expect("Empty map cannot be accepted as step_p21 Holder");
+                let key: String = map.next_key()?.ok_or_else(|| {
+                    <A::Error as ::step_p21::serde::de::Error>::invalid_length(0, &self)
+                })?;
                 match key.as_str() {
                     "A" => {
                         let owned = map.next_value()?;
@@ -411,9 +411,9 @@ mod snapshot_tests {
             where
                 A: ::step_p21::serde::de::MapAccess<'de>,
             {
-                let key: String = map
-                    .next_key()?
-                    .expect("Empty map cannot be accepted as step_p21 Holder");
+                let key: String = map.next_key()?.ok_or_else(|| {
+                    <A::Error as ::step_p21::serde::de::Error>::invalid_length(0, &self)
+                })?;
                 match key.as_str() {
                     "BASE" => {
                         let owned = map.next_value()?;

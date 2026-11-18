@@ -13,9 +13,9 @@
 use nom::{
     IResult, Parser,
     branch::alt,
-    bytes::complete::tag,
-    character::complete::{char, multispace0, multispace1, none_of},
-    combinator::{not, opt, peek, value},
+    bytes::complete::{tag, take_until},
+    character::complete::{char, multispace0, multispace1},
+    combinator::{opt, value},
     multi::{many0, many1},
 };
 use nom_language::error::VerboseError;
@@ -72,13 +72,16 @@ pub fn opt_<'a, O>(
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn comment(input: &str) -> ParseResult<'_, String> {
-    let internal = alt((
-        none_of("*"),
-        tuple((char('*'), peek(not(char('/'))))).map(|(star, _not_slash)| star),
-    ));
-    tuple((tag("/*"), many0(internal), tag("*/")))
-        .map(|(_start, c, _end)| c.into_iter().collect())
-        .parse(input)
+    comment_slice(input).map(|(remaining, text)| (remaining, text.to_owned()))
+}
+
+/// Recognize a comment without materializing its body. Most callers only
+/// discard comments while separating tokens, including large STEP fixtures.
+fn comment_slice(input: &str) -> ParseResult<'_, &str> {
+    let (remaining, _) = tag("/*")(input)?;
+    let (remaining, text) = take_until("*/").parse(remaining)?;
+    let (remaining, _) = tag("*/")(remaining)?;
+    Ok((remaining, text))
 }
 
 /// Comments with front/back spaces, or multi-space at least 1 char
@@ -94,7 +97,8 @@ pub fn comment(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn separator(input: &str) -> ParseResult<'_, ()> {
-    let comment = many1(tuple((multispace0, comment, multispace0))).map(|_| ());
+    let comment =
+        many1(tuple((multispace0, comment_slice, multispace0))).map(|_| ());
     alt((comment, value((), multispace1))).parse(input)
 }
 
@@ -142,7 +146,7 @@ pub fn ignorable(mut input: &str) -> ParseResult<'_, ()> {
         if !input.starts_with("/*") {
             return Ok((input, ()));
         }
-        match comment(input) {
+        match comment_slice(input) {
             Ok((after_comment, _)) => input = after_comment,
             // Preserve the old backtracking behavior for an incomplete
             // comment opener: ignore the preceding whitespace but let the
@@ -306,6 +310,23 @@ mod tests {
         let (res, c) = super::comment("/* vim * vim */").finish().unwrap();
         assert_eq!(res, "");
         assert_eq!(c, " vim * vim ");
+    }
+
+    #[test]
+    fn comment_handles_empty_unicode_stars_and_unterminated_input() {
+        for (input, content, rest) in [
+            ("/**/", "", ""),
+            ("/*data**with*stars*/NEXT", "data**with*stars", "NEXT"),
+            ("/* 🌍 */ end", " 🌍 ", " end"),
+            ("/*/*/", "/", ""),
+        ] {
+            let (remaining, parsed) = super::comment(input).finish().unwrap();
+            assert_eq!((remaining, parsed.as_str()), (rest, content));
+        }
+
+        for input in ["/*", "/* incomplete", "/*nested /* unfinished"] {
+            assert!(super::comment(input).finish().is_err());
+        }
     }
 
     #[test]

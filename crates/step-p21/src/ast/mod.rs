@@ -65,7 +65,7 @@ macro_rules! derive_ast_from_str {
                     })?;
                 if !residual.is_empty() {
                     return Err($crate::error::Error::ExtraInputRemaining(
-                        input.to_string(),
+                        residual.to_owned(),
                     ));
                 }
                 Ok(record)

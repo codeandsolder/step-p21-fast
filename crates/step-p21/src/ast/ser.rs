@@ -2,6 +2,7 @@ use crate::{
     ast::{Parameter, Record},
     error::{Error, Result},
 };
+use inflector::Inflector;
 use serde::ser;
 use std::convert::TryFrom;
 
@@ -15,6 +16,11 @@ pub fn to_record(obj: &impl ser::Serialize) -> Result<Record> {
     obj.serialize(&mut ser)?;
     if !ser.stack.is_empty() {
         return Err(Error::UnbalancedRecordStack);
+    }
+    if ser.name.is_empty() {
+        return Err(Error::UnsupportedSerialization(
+            "top-level STEP records must be structs",
+        ));
     }
     Ok(Record {
         name: ser.name,
@@ -135,7 +141,9 @@ impl ser::Serializer for &mut RecordSerializer {
         _variant_index: u32,
         variant: &'static str,
     ) -> Result<()> {
-        self.serialize_str(variant)
+        self.parameters
+            .push(Parameter::Enumeration(variant.to_screaming_snake_case()));
+        Ok(())
     }
 
     fn serialize_newtype_struct<T>(
@@ -197,8 +205,11 @@ impl ser::Serializer for &mut RecordSerializer {
         name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStruct> {
+        // Rust's serde names are commonly PascalCase; Part 21 records use
+        // uppercase keywords with underscores, also for nested typed values.
+        let name = name.to_screaming_snake_case();
         if self.name.is_empty() {
-            self.name = name.to_string();
+            self.name = name;
         } else {
             // Entering sub struct e.g.
             //
@@ -210,8 +221,7 @@ impl ser::Serializer for &mut RecordSerializer {
             // and start serializing `A((1.0, 2.0))`.
             // This stack will be popped in SerializeStruct::end()
             //
-            let current_name =
-                std::mem::replace(&mut self.name, name.to_string());
+            let current_name = std::mem::replace(&mut self.name, name);
             let current_params = std::mem::take(&mut self.parameters);
             self.stack.push((current_name, current_params));
         }
@@ -391,6 +401,75 @@ mod tests {
             S: serde::Serializer,
         {
             serializer.serialize_bytes(&[1, 2, 3])
+        }
+    }
+
+    #[derive(Serialize)]
+    enum Shape {
+        SolidBody,
+    }
+
+    #[derive(Serialize)]
+    struct WithEnum {
+        shape: Shape,
+        visible: bool,
+    }
+
+    #[test]
+    fn enum_fields_serialize_as_step_enumerations_not_strings() {
+        let record = to_record(&WithEnum {
+            shape: Shape::SolidBody,
+            visible: true,
+        })
+        .unwrap();
+        assert_eq!(record.name, "WITH_ENUM");
+        assert_eq!(
+            record.parameter,
+            crate::ast::Parameter::List(vec![
+                crate::ast::Parameter::Enumeration("SOLID_BODY".to_owned()),
+                crate::ast::Parameter::Enumeration("TRUE".to_owned()),
+            ])
+        );
+    }
+
+    #[derive(Serialize)]
+    struct Enclosing {
+        inner: WithEnum,
+    }
+
+    #[test]
+    fn nested_records_use_part_21_keywords() {
+        use std::str::FromStr;
+
+        let record = to_record(&Enclosing {
+            inner: WithEnum {
+                shape: Shape::SolidBody,
+                visible: true,
+            },
+        })
+        .unwrap();
+        assert_eq!(
+            record,
+            crate::ast::Record::from_str(
+                "ENCLOSING(WITH_ENUM((.SOLID_BODY.,.TRUE.)))"
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn top_level_primitives_cannot_be_step_records() {
+        for error in [
+            to_record(&42_i64).unwrap_err(),
+            to_record(&vec![1_i64, 2]).unwrap_err(),
+            to_record(&Shape::SolidBody).unwrap_err(),
+        ] {
+            assert!(matches!(
+                error,
+                Error::UnsupportedSerialization(
+                    "top-level STEP records must be structs"
+                )
+            ));
         }
     }
 

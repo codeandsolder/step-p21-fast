@@ -1,5 +1,26 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- Recognize ignorable STEP comments by borrowing their original source text;
+  preserve the public comment parser's owned return type while avoiding
+  temporary character-vector and string allocations on the common parse path.
+- Report only the actually unconsumed suffix for trailing STEP input errors,
+  rather than repeating the entire original input.
+- Reject duplicate entity IDs before deserializing or modifying the first record;
+  preserve table state when a duplicate is encountered.
+- Remove intermediate allocations from complex-record deserialization while
+  preserving its original component order and returning typed errors for
+  invalid Serde visitor operations rather than panicking.
+- Normalize Rust Serde struct names to valid uppercase STEP record
+  keywords, including nested typed parameters, with round-trip AST tests.
+- Encode serializable Rust unit enums as STEP enumeration parameters
+  rather than STEP strings, and reject non-struct top-level values rather
+  than manufacturing unnamed/invalid records.
+- Enforce Serde map's one-key/one-value consumption state consistently
+  for simple STEP records and struct field maps, rejecting invalid visitor
+  sequences without replaying values.
+- Fix remaining-length reporting for STEP parameter sequences and report
+  truncated record fields/empty SELECT mappings as errors, with regressions.
+
 - Add explicit `#[holder(eq)]` support to generate `Eq` for named,
   tuple, and enum holders when their fields permit it; no `Eq` is imposed on
   floating-point holders. This fixes strict Clippy warnings in downstream CAD crates.
