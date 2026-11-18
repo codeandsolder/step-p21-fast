@@ -1,11 +1,26 @@
-use super::{attribute::*, derive::*, domain::*, inverse::*, unique::*};
+use super::{
+    attribute::attribute_decl, derive::derive_clause, domain::where_clause,
+    inverse::inverse_clause, unique::unique_clause,
+};
 use crate::{
-    ast::*,
-    parser::{combinator::*, identifier::*, subsuper::*, types::*},
+    ast::{Constraint, Entity, EntityAttribute, EntityBody, SubTypeDecl},
+    parser::{
+        combinator::{
+            EsprParser, ParseResult, char, comma_separated, many0, opt, tag,
+            tuple,
+        },
+        identifier::entity_id,
+        subsuper::subsuper,
+        types::parameter_type,
+    },
 };
 
-/// 215 explicit_attr = [attribute_decl] { `,` [attribute_decl] } `:` \[
-/// OPTIONAL \] [parameter_type] `;` .
+/// 215 `explicit_attr` = [`attribute_decl`] { `,` [`attribute_decl`] } `:` \[
+/// OPTIONAL \] [`parameter_type`] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn explicit_attr(input: &str) -> ParseResult<'_, Vec<EntityAttribute>> {
     tuple((
         comma_separated(attribute_decl),
@@ -27,7 +42,11 @@ pub fn explicit_attr(input: &str) -> ParseResult<'_, Vec<EntityAttribute>> {
     .parse(input)
 }
 
-/// 207 entity_head = ENTITY [entity_id] [subsuper] `;` .
+/// 207 `entity_head` = ENTITY [`entity_id`] [subsuper] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn entity_head(
     input: &str,
 ) -> ParseResult<'_, (String, Option<Constraint>, Option<SubTypeDecl>)> {
@@ -43,8 +62,12 @@ pub fn entity_head(
     .parse(input)
 }
 
-/// 204 entity_body = { [explicit_attr] } \[ [derive_clause] \] \[
-/// [inverse_clause] \] \[ [unique_clause] \] \[ [where_clause] \] .
+/// 204 `entity_body` = { [`explicit_attr`] } \[ [`derive_clause`] \] \[
+/// [`inverse_clause`] \] \[ [`unique_clause`] \] \[ [`where_clause`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn entity_body(input: &str) -> ParseResult<'_, EntityBody> {
     tuple((
         many0(explicit_attr),
@@ -71,7 +94,11 @@ pub fn entity_body(input: &str) -> ParseResult<'_, EntityBody> {
     .parse(input)
 }
 
-/// 206 entity_decl = [entity_head] [entity_body] END_ENTITY `;` .
+/// 206 `entity_decl` = [`entity_head`] [`entity_body`] `END_ENTITY` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn entity_decl(input: &str) -> ParseResult<'_, Entity> {
     tuple((entity_head, entity_body, tag("END_ENTITY"), char(';')))
         .map(
@@ -103,6 +130,7 @@ pub fn entity_decl(input: &str) -> ParseResult<'_, Entity> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::{SimpleType, SuperTypeExpression, Type};
     use nom::Finish;
 
     #[test]
@@ -253,7 +281,6 @@ mod tests {
 
         let (residual, (entity, _remark)) =
             super::entity_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
 
         assert_eq!(entity.name, "camera_model_d2");
@@ -276,7 +303,6 @@ mod tests {
 
         let (residual, (entity, _remark)) =
             super::entity_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
 
         assert_eq!(entity.name, "drawing_revision");
@@ -298,7 +324,6 @@ mod tests {
 
         let (residual, (entity, _remark)) =
             super::entity_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
 
         assert_eq!(entity.name, "si_unit");
@@ -324,9 +349,8 @@ mod tests {
         "#
         .trim();
 
-        let (residual, (entity, _remark)) =
+        let (residual, (_entity, _remark)) =
             super::entity_decl(exp_str).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
     }
 
@@ -361,9 +385,8 @@ mod tests {
         "#
         .trim();
 
-        let (residual, (entity, _remark)) =
+        let (residual, (_entity, _remark)) =
             super::entity_decl(input).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
     }
 
@@ -392,9 +415,8 @@ mod tests {
         "#
         .trim();
 
-        let (residual, (entity, _remark)) =
+        let (residual, (_entity, _remark)) =
             super::entity_decl(input).finish().unwrap();
-        dbg!(&entity);
         assert_eq!(residual, "");
     }
 }

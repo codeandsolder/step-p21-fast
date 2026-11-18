@@ -1,11 +1,20 @@
-use super::{super::combinator::*, *};
-use crate::ast::*;
+use super::{
+    super::combinator::{
+        EsprParser, ParseResult, char, comma_separated, opt, tuple,
+    },
+    expression, simple_expression,
+};
+use crate::ast::{Element, Expression};
 
-/// 169 aggregate_initializer = `[` \[ [element] { `,` [element] } \] `]` .
+/// 169 `aggregate_initializer` = `[` \[ [element] { `,` [element] } \] `]` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn aggregate_initializer(input: &str) -> ParseResult<'_, Expression> {
     tuple((
         char('['),
-        opt(comma_separated(element)).map(|opt| opt.unwrap_or_default()),
+        opt(comma_separated(element)).map(Option::unwrap_or_default),
         char(']'),
     ))
     .map(
@@ -17,6 +26,10 @@ pub fn aggregate_initializer(input: &str) -> ParseResult<'_, Expression> {
 }
 
 /// 203 element = [expression] \[ `:` [repetition] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn element(input: &str) -> ParseResult<'_, Element> {
     tuple((expression, opt(tuple((char(':'), repetition)))))
         .map(|(expr, opt)| Element {
@@ -26,12 +39,20 @@ pub fn element(input: &str) -> ParseResult<'_, Element> {
         .parse(input)
 }
 
-/// 287 repetition = [numeric_expression] .
+/// 287 repetition = [`numeric_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn repetition(input: &str) -> ParseResult<'_, Expression> {
     numeric_expression(input)
 }
 
-/// 262 numeric_expression = [simple_expression] .
+/// 262 `numeric_expression` = [`simple_expression`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn numeric_expression(input: &str) -> ParseResult<'_, Expression> {
     simple_expression(input)
 }
@@ -39,12 +60,13 @@ pub fn numeric_expression(input: &str) -> ParseResult<'_, Expression> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::{BinaryOperator, Literal, UnaryOperator};
     use nom::Finish;
 
     #[test]
     fn aggregate_initializer_empty() {
-        let (res, (expr, _remarks)) = super::expression("[]").finish().unwrap();
-        dbg!(expr);
+        let (res, (_expr, _remarks)) =
+            super::expression("[]").finish().unwrap();
         assert_eq!(res, "");
     }
 

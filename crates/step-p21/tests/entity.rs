@@ -38,7 +38,6 @@ fn deserialize_a_holder() {
     let (residual, p): (_, Record) =
         exchange::simple_record("A(1.0, 2.0)").finish().unwrap();
     assert_eq!(residual, "");
-    dbg!(&p);
     let a: AHolder = Deserialize::deserialize(&p).unwrap();
     assert_eq!(a, AHolder { x: 1.0, y: 2.0 });
 
@@ -46,7 +45,6 @@ fn deserialize_a_holder() {
     let (residual, p): (_, Parameter) =
         exchange::parameter("A((1.0, 2.0))").finish().unwrap();
     assert_eq!(residual, "");
-    dbg!(&p);
     let a: AHolder = Deserialize::deserialize(&p).unwrap();
     assert_eq!(a, AHolder { x: 1.0, y: 2.0 });
 
@@ -54,7 +52,6 @@ fn deserialize_a_holder() {
     let (residual, p): (_, Record) =
         exchange::simple_record("A(1.0, 2.0)").finish().unwrap();
     assert_eq!(residual, "");
-    dbg!(&p);
     let a: PlaceHolder<AHolder> = Deserialize::deserialize(&p).unwrap();
     assert_eq!(a, PlaceHolder::Owned(AHolder { x: 1.0, y: 2.0 }));
 }
@@ -67,7 +64,6 @@ fn deserialize_b_holder_record() {
             .finish()
             .unwrap();
     assert_eq!(residual, "");
-    dbg!(&p);
     let b: BHolder = Deserialize::deserialize(&p).unwrap();
     assert_eq!(
         b,
@@ -84,7 +80,6 @@ fn deserialize_b_holder_record_ref() {
     let (residual, p): (_, Record) =
         exchange::simple_record("B(1.0, #2)").finish().unwrap();
     assert_eq!(residual, "");
-    dbg!(&p);
     let b: BHolder = Deserialize::deserialize(&p).unwrap();
     assert_eq!(
         b,
@@ -103,7 +98,6 @@ fn deserialize_b_holder_parameter() {
             .finish()
             .unwrap();
     assert_eq!(residual, "");
-    dbg!(&p);
     let b: BHolder = Deserialize::deserialize(&p).unwrap();
     assert_eq!(
         b,
@@ -120,7 +114,6 @@ fn deserialize_b_holder_parameter_ref() {
     let (residual, p): (_, Parameter) =
         exchange::parameter("B((1.0, #2))").finish().unwrap();
     assert_eq!(residual, "");
-    dbg!(&p);
     let b: BHolder = Deserialize::deserialize(&p).unwrap();
     assert_eq!(
         b,

@@ -1,11 +1,30 @@
 use super::{
-    combinator::*, entity::*, expression::*, identifier::*, stmt::*,
-    subsuper::*, types::*,
+    combinator::{
+        EsprParser, ParseResult, alt, char, comma_separated, many0, many1, opt,
+        semicolon_separated, tag, tuple,
+    },
+    entity::{entity_decl, where_clause},
+    expression::expression,
+    identifier::{
+        constant_id, entity_id, entity_ref, function_id, parameter_id,
+        procedure_id, rename_id, resource_ref, rule_id, schema_id, schema_ref,
+        type_id, variable_id,
+    },
+    stmt::stmt,
+    subsuper::subtype_constraint_decl,
+    types::{instantiable_type, named_types, parameter_type, type_decl},
 };
-use crate::ast::*;
+use crate::ast::{
+    Constant, Declaration, FormalParameter, Function, InterfaceSpec,
+    LocalVariable, Procedure, Rule, Schema, Type,
+};
 
-/// 296 schema_decl = SCHEMA [schema_id] \[ schema_version_id \] `;`
-/// [schema_body] END_SCHEMA `;` .
+/// 296 `schema_decl` = SCHEMA [`schema_id`] \[ `schema_version_id` \] `;`
+/// [`schema_body`] `END_SCHEMA` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn schema_decl(input: &str) -> ParseResult<'_, Schema> {
     // FIXME schema_version_id
     let schema_head = tuple((tag("SCHEMA "), schema_id, char(';')))
@@ -27,7 +46,7 @@ pub fn schema_decl(input: &str) -> ParseResult<'_, Schema> {
                     Declaration::Procedure(p) => procedures.push(p),
                     Declaration::Rule(r) => rules.push(r),
                     Declaration::SubTypeConstraint(sub) => {
-                        subtype_constraints.push(sub)
+                        subtype_constraints.push(sub);
                     }
                 }
             }
@@ -47,21 +66,29 @@ pub fn schema_decl(input: &str) -> ParseResult<'_, Schema> {
         .parse(input)
 }
 
-/// 295 schema_body = { [interface_specification] } \[ [constant_decl] \] {
-/// [declaration] | [rule_decl] } .
+/// 295 `schema_body` = { [`interface_specification`] } \[ [`constant_decl`] \]
+/// { [declaration] | [`rule_decl`] } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn schema_body(
     input: &str,
 ) -> ParseResult<'_, (Vec<InterfaceSpec>, Vec<Constant>, Vec<Declaration>)> {
     tuple((
         many0(interface_specification),
-        opt(constant_decl).map(|opt| opt.unwrap_or_default()),
+        opt(constant_decl).map(Option::unwrap_or_default),
         many0(alt((declaration, rule_decl.map(Declaration::Rule)))),
     ))
     .parse(input)
 }
 
-/// 199 declaration = [entity_decl] | [function_decl] | [procedure_decl] |
-/// [subtype_constraint_decl] | [type_decl] .
+/// 199 declaration = [`entity_decl`] | [`function_decl`] | [`procedure_decl`] |
+/// [`subtype_constraint_decl`] | [`type_decl`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn declaration(input: &str) -> ParseResult<'_, Declaration> {
     alt((
         entity_decl.map(Declaration::Entity),
@@ -73,8 +100,12 @@ pub fn declaration(input: &str) -> ParseResult<'_, Declaration> {
     .parse(input)
 }
 
-/// 271 procedure_decl = [procedure_head] [algorithm_head] { [stmt] }
-/// END_PROCEDURE `;` .
+/// 271 `procedure_decl` = [`procedure_head`] [`algorithm_head`] { [stmt] }
+/// `END_PROCEDURE` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn procedure_decl(input: &str) -> ParseResult<'_, Procedure> {
     tuple((
         procedure_head,
@@ -102,12 +133,16 @@ pub fn procedure_decl(input: &str) -> ParseResult<'_, Procedure> {
     .parse(input)
 }
 
-/// 272 procedure_head = PROCEDURE [procedure_id]
+/// 272 `procedure_head` = PROCEDURE [`procedure_id`]
 ///                    \[ `(`
-///                      \[ VAR \] [formal_parameter] { `;`
-///                      \[ VAR \] [formal_parameter]
+///                      \[ VAR \] [`formal_parameter`] { `;`
+///                      \[ VAR \] [`formal_parameter`]
 ///                    }
 ///                    `)` \] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn procedure_head(
     input: &str,
 ) -> ParseResult<'_, (String, Vec<FormalParameter>)> {
@@ -124,19 +159,23 @@ pub fn procedure_head(
         opt(
             tuple((char('('), semicolon_separated(param), char(')'))).map(
                 |(_open, params, _close)| {
-                    params.into_iter().flat_map(|ps| ps.into_iter()).collect()
+                    params.into_iter().flatten().collect()
                 },
             ),
         )
-        .map(|opt| opt.unwrap_or_default()),
+        .map(Option::unwrap_or_default),
         char(';'),
     ))
     .map(|(_procedure, name, parameters, _semicolon)| (name, parameters))
     .parse(input)
 }
 
-/// 220 function_decl = [function_head] [algorithm_head] [stmt] { [stmt] }
-/// END_FUNCTION `;` .
+/// 220 `function_decl` = [`function_head`] [`algorithm_head`] [stmt] { [stmt] }
+/// `END_FUNCTION` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn function_decl(input: &str) -> ParseResult<'_, Function> {
     tuple((
         function_head,
@@ -165,9 +204,13 @@ pub fn function_decl(input: &str) -> ParseResult<'_, Function> {
     .parse(input)
 }
 
-/// 221 function_head = FUNCTION [function_id]
-///                   \[ `(` [formal_parameter] { `;` [formal_parameter] } `)`
-/// \]                   `:` [parameter_type] `;` .
+/// 221 `function_head` = FUNCTION [`function_id`]
+///                   \[ `(` [`formal_parameter`] { `;` [`formal_parameter`] }
+/// `)` \]                   `:` [`parameter_type`] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn function_head(
     input: &str,
 ) -> ParseResult<'_, (String, Vec<FormalParameter>, Type)> {
@@ -179,10 +222,8 @@ pub fn function_head(
             semicolon_separated(formal_parameter),
             char(')'),
         ))
-        .map(|(_open, params, _close)| {
-            params.into_iter().flat_map(|ps| ps.into_iter()).collect()
-        }))
-        .map(|opt| opt.unwrap_or_default()),
+        .map(|(_open, params, _close)| params.into_iter().flatten().collect()))
+        .map(Option::unwrap_or_default),
         char(':'),
         parameter_type,
         char(';'),
@@ -193,8 +234,12 @@ pub fn function_head(
     .parse(input)
 }
 
-/// 218 formal_parameter = [parameter_id] { `,` [parameter_id] } `:`
-/// [parameter_type] .
+/// 218 `formal_parameter` = [`parameter_id`] { `,` [`parameter_id`] } `:`
+/// [`parameter_type`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn formal_parameter(input: &str) -> ParseResult<'_, Vec<FormalParameter>> {
     tuple((comma_separated(parameter_id), char(':'), parameter_type))
         .map(|(names, _comma, ty)| {
@@ -210,8 +255,12 @@ pub fn formal_parameter(input: &str) -> ParseResult<'_, Vec<FormalParameter>> {
         .parse(input)
 }
 
-/// 195 constant_decl = CONSTANT [constant_body] { [constant_body] }
-/// END_CONSTANT `;` .
+/// 195 `constant_decl` = CONSTANT [`constant_body`] { [`constant_body`] }
+/// `END_CONSTANT` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn constant_decl(input: &str) -> ParseResult<'_, Vec<Constant>> {
     tuple((
         tag("CONSTANT"),
@@ -223,8 +272,12 @@ pub fn constant_decl(input: &str) -> ParseResult<'_, Vec<Constant>> {
     .parse(input)
 }
 
-/// 194 constant_body = [constant_id] `:` [instantiable_type] `:=` [expression]
-/// `;` .
+/// 194 `constant_body` = [`constant_id`] `:` [`instantiable_type`] `:=`
+/// [expression] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn constant_body(input: &str) -> ParseResult<'_, Constant> {
     tuple((
         constant_id,
@@ -242,8 +295,12 @@ pub fn constant_body(input: &str) -> ParseResult<'_, Constant> {
     .parse(input)
 }
 
-/// 291 rule_decl = [rule_head] [algorithm_head] { [stmt] } [where_clause]
-/// END_RULE `;` .
+/// 291 `rule_decl` = [`rule_head`] [`algorithm_head`] { [stmt] }
+/// [`where_clause`] `END_RULE` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn rule_decl(input: &str) -> ParseResult<'_, Rule> {
     tuple((
         rule_head,
@@ -274,8 +331,12 @@ pub fn rule_decl(input: &str) -> ParseResult<'_, Rule> {
     .parse(input)
 }
 
-/// 292 rule_head = RULE [rule_id] FOR `(` [entity_ref] { `,` [entity_ref] } `)`
-/// `;` .
+/// 292 `rule_head` = RULE [`rule_id`] FOR `(` [`entity_ref`] { `,`
+/// [`entity_ref`] } `)` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn rule_head(input: &str) -> ParseResult<'_, (String, Vec<String>)> {
     tuple((
         tag("RULE"),
@@ -294,20 +355,29 @@ pub fn rule_head(input: &str) -> ParseResult<'_, (String, Vec<String>)> {
     .parse(input)
 }
 
-/// 173 algorithm_head = { [declaration] } \[ [constant_decl] \] \[ [local_decl]
-/// \] .
+/// 173 `algorithm_head` = { [declaration] } \[ [`constant_decl`] \] \[
+/// [`local_decl`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn algorithm_head(
     input: &str,
 ) -> ParseResult<'_, (Vec<Declaration>, Vec<Constant>, Vec<LocalVariable>)> {
     tuple((
         many0(declaration),
-        opt(constant_decl).map(|opt| opt.unwrap_or_default()),
-        opt(local_decl).map(|opt| opt.unwrap_or_default()),
+        opt(constant_decl).map(Option::unwrap_or_default),
+        opt(local_decl).map(Option::unwrap_or_default),
     ))
     .parse(input)
 }
 
-/// 252 local_decl = LOCAL [local_variable] { [local_variable] } END_LOCAL `;` .
+/// 252 `local_decl` = LOCAL [`local_variable`] { [`local_variable`] }
+/// `END_LOCAL` `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn local_decl(input: &str) -> ParseResult<'_, Vec<LocalVariable>> {
     tuple((
         tag("LOCAL"),
@@ -316,13 +386,17 @@ pub fn local_decl(input: &str) -> ParseResult<'_, Vec<LocalVariable>> {
         char(';'),
     ))
     .map(|(_local, vars, _end, _semicolon)| {
-        vars.into_iter().flat_map(|var| var.into_iter()).collect()
+        vars.into_iter().flatten().collect()
     })
     .parse(input)
 }
 
-/// 253 local_variable = [variable_id] { `,` [variable_id] } `:`
-/// [parameter_type] \[ `:=` [expression] \] `;` .
+/// 253 `local_variable` = [`variable_id`] { `,` [`variable_id`] } `:`
+/// [`parameter_type`] \[ `:=` [expression] \] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn local_variable(input: &str) -> ParseResult<'_, Vec<LocalVariable>> {
     tuple((
         comma_separated(variable_id),
@@ -344,13 +418,21 @@ pub fn local_variable(input: &str) -> ParseResult<'_, Vec<LocalVariable>> {
     .parse(input)
 }
 
-/// 242 interface_specification = [reference_clause] | [use_clause] .
+/// 242 `interface_specification` = [`reference_clause`] | [`use_clause`] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn interface_specification(input: &str) -> ParseResult<'_, InterfaceSpec> {
     alt((reference_clause, use_clause)).parse(input)
 }
 
-/// 281 reference_clause = REFERENCE FROM [schema_ref] \[ `(`
-/// [resource_or_rename] { `,` [resource_or_rename] } `)` \] `;` .
+/// 281 `reference_clause` = REFERENCE FROM [`schema_ref`] \[ `(`
+/// [`resource_or_rename`] { `,` [`resource_or_rename`] } `)` \] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn reference_clause(input: &str) -> ParseResult<'_, InterfaceSpec> {
     tuple((
         tag("REFERENCE"),
@@ -360,7 +442,7 @@ pub fn reference_clause(input: &str) -> ParseResult<'_, InterfaceSpec> {
             tuple((char('('), comma_separated(resource_or_rename), char(')')))
                 .map(|(_open, ty, _close)| ty),
         )
-        .map(|opt| opt.unwrap_or_default()),
+        .map(Option::unwrap_or_default),
         char(';'),
     ))
     .map(|(_use, _from, name, resources, _semicolon)| {
@@ -369,7 +451,11 @@ pub fn reference_clause(input: &str) -> ParseResult<'_, InterfaceSpec> {
     .parse(input)
 }
 
-/// 288 resource_or_rename = [resource_ref] \[ AS [rename_id] \] .
+/// 288 `resource_or_rename` = [`resource_ref`] \[ AS [`rename_id`] \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn resource_or_rename(
     input: &str,
 ) -> ParseResult<'_, (String, Option<String>)> {
@@ -380,9 +466,13 @@ pub fn resource_or_rename(
     .parse(input)
 }
 
-/// 336 use_clause = USE FROM [schema_ref]
-///                \[ `(` [named_type_or_rename] { `,` [named_type_or_rename] }
-/// `)`                \] `;` .
+/// 336 `use_clause` = USE FROM [`schema_ref`]
+///                \[ `(` [`named_type_or_rename`] { `,`
+/// [`named_type_or_rename`] } `)`                \] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn use_clause(input: &str) -> ParseResult<'_, InterfaceSpec> {
     tuple((
         tag("USE"),
@@ -394,7 +484,7 @@ pub fn use_clause(input: &str) -> ParseResult<'_, InterfaceSpec> {
             char(')'),
         ))
         .map(|(_open, ty, _close)| ty))
-        .map(|opt| opt.unwrap_or_default()),
+        .map(Option::unwrap_or_default),
         char(';'),
     ))
     .map(
@@ -406,8 +496,12 @@ pub fn use_clause(input: &str) -> ParseResult<'_, InterfaceSpec> {
     .parse(input)
 }
 
-/// 259 named_type_or_rename = [named_types] \[ AS ( [entity_id] | [type_id] )
-/// \] .
+/// 259 `named_type_or_rename` = [`named_types`] \[ AS ( [`entity_id`] |
+/// [`type_id`] ) \] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn named_type_or_rename(
     input: &str,
 ) -> ParseResult<'_, (String, Option<String>)> {
@@ -486,9 +580,8 @@ mod tests {
         END_CONSTANT;
         "#
         .trim();
-        let (residual, (local, _remark)) =
+        let (residual, (_local, _remark)) =
             super::constant_decl(exp_str).finish().unwrap();
-        dbg!(&local);
         assert_eq!(residual, "");
     }
 
@@ -502,9 +595,8 @@ mod tests {
         END_LOCAL;
         "#
         .trim();
-        let (residual, (local, _remark)) =
+        let (residual, (_local, _remark)) =
             super::local_decl(exp_str).finish().unwrap();
-        dbg!(&local);
         assert_eq!(residual, "");
     }
 
@@ -518,9 +610,8 @@ mod tests {
         END_LOCAL;
         "#
         .trim();
-        let (residual, (local, _remark)) =
+        let (residual, (_local, _remark)) =
             super::local_decl(exp_str).finish().unwrap();
-        dbg!(&local);
         assert_eq!(residual, "");
     }
 
@@ -544,9 +635,8 @@ mod tests {
         END_RULE;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::rule_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -570,29 +660,26 @@ mod tests {
         END_RULE;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::rule_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
     #[test]
     fn formal_parameter1() {
-        let (residual, (p, _remark)) =
+        let (residual, (_p, _remark)) =
             super::formal_parameter("input : AGGREGATE:intype OF REAL")
                 .finish()
                 .unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
     }
 
     #[test]
     fn formal_parameter2() {
-        let (residual, (p, _remark)) =
+        let (residual, (_p, _remark)) =
             super::formal_parameter("a,b: GENERIC:intype")
                 .finish()
                 .unwrap();
-        dbg!(&p);
         assert_eq!(residual, "");
     }
 
@@ -618,9 +705,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -648,9 +734,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -665,9 +750,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -689,9 +773,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 
@@ -721,9 +804,8 @@ mod tests {
         END_FUNCTION;
         "#
         .trim();
-        let (residual, (rule, _remark)) =
+        let (residual, (_rule, _remark)) =
             super::function_decl(exp_str).finish().unwrap();
-        dbg!(&rule);
         assert_eq!(residual, "");
     }
 }

@@ -1,18 +1,30 @@
-use super::attribute::*;
+use super::attribute::attribute_decl;
 use crate::{
-    ast::*,
-    parser::{combinator::*, expression::*, types::*},
+    ast::{DeriveClause, DerivedAttribute},
+    parser::{
+        combinator::{EsprParser, ParseResult, char, many1, tag, tuple},
+        expression::expression,
+        types::parameter_type,
+    },
 };
 
-/// 201 derive_clause = DERIVE [derived_attr] { [derived_attr] } .
+/// 201 `derive_clause` = DERIVE [`derived_attr`] { [`derived_attr`] } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn derive_clause(input: &str) -> ParseResult<'_, DeriveClause> {
     tuple((tag("DERIVE"), many1(derived_attr)))
         .map(|(_derive, attributes)| DeriveClause { attributes })
         .parse(input)
 }
 
-/// 200 derived_attr = [attribute_decl] `:` [parameter_type] `:=` [expression]
-/// `;` .
+/// 200 `derived_attr` = [`attribute_decl`] `:` [`parameter_type`] `:=`
+/// [expression] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn derived_attr(input: &str) -> ParseResult<'_, DerivedAttribute> {
     tuple((
         attribute_decl,

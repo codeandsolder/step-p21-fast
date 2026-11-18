@@ -1,5 +1,4 @@
 rust-toolchain
 target/
-Cargo.lock
 /tests/decoded.rs
 *.pending-snap

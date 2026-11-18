@@ -12,8 +12,10 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[package.metadata.rust-skills2]
+generated-lint-boundaries = ["src/ap201.rs", "src/ap203.rs"]
+
 [dependencies]
-derive-new = { workspace = true }
 derive_more = { workspace = true }
 Inflector = { workspace = true }
 itertools = { workspace = true }
@@ -24,6 +26,7 @@ step-p21-derive = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+derive-new = { workspace = true }
 anyhow = { workspace = true }
 step-p11-derive = { workspace = true }
 maplit = { workspace = true }

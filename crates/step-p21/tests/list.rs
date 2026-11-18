@@ -30,10 +30,8 @@ use test_schema::*;
 fn deserialize_list_a() {
     let (residual, p): (_, Record) =
         exchange::simple_record("A((1.0, 2.0))").finish().unwrap();
-    dbg!(&p);
     assert_eq!(residual, "");
     let a: AHolder = Deserialize::deserialize(&p).unwrap();
-    dbg!(&a);
     assert_eq!(a, AHolder { x: vec![1.0, 2.0] });
 }
 
@@ -41,10 +39,8 @@ fn deserialize_list_a() {
 fn deserialize_list_b() {
     let (residual, p): (_, Record) =
         exchange::simple_record("B((A(((1.0)))))").finish().unwrap();
-    dbg!(&p);
     assert_eq!(residual, "");
     let b: BHolder = Deserialize::deserialize(&p).unwrap();
-    dbg!(&b);
     assert_eq!(
         b,
         BHolder {
@@ -59,10 +55,8 @@ fn deserialize_list_c() {
         exchange::simple_record("C( ( ( A(((1.0))) ), ( A(((2.0))) ) ) )")
             .finish()
             .unwrap();
-    dbg!(&p);
     assert_eq!(residual, "");
     let c: CHolder = Deserialize::deserialize(&p).unwrap();
-    dbg!(&c);
     assert_eq!(
         c,
         CHolder {

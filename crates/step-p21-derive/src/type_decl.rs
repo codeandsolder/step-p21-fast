@@ -1,8 +1,12 @@
 use inflector::Inflector;
+use proc_macro_error2::ResultExt;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 
-use super::*;
+use super::{
+    FieldType, HolderAttr, abort_call_site, as_holder_ident, as_holder_visitor,
+    as_visitor_ident, serde_crate, step_p21_crate,
+};
 
 pub fn derive_holder(
     ident: &syn::Ident,
@@ -215,7 +219,11 @@ impl FieldEntries {
         let mut into_owned = Vec::new();
 
         for (i, field) in st.fields.iter().enumerate() {
-            let ft: FieldType = field.ty.clone().try_into().unwrap();
+            let ft: FieldType = field
+                .ty
+                .clone()
+                .try_into()
+                .expect_or_abort("unsupported declared field type");
             let index = syn::Index::from(i);
 
             let HolderAttr { place_holder, .. } =
@@ -246,7 +254,7 @@ impl FieldEntries {
                 holder_types.push(ft.into());
             }
         }
-        FieldEntries {
+        Self {
             holder_types,
             into_owned,
         }

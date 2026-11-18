@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::ops::*;
+use std::ops::{BitAnd, BitOr, BitXor, Not};
 
 /// `LOGICAL` type
 ///
@@ -71,33 +71,27 @@ pub enum Logical {
 impl std::fmt::Display for Logical {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
-            Logical::True => f.pad("true"),
-            Logical::Unknown => f.pad("unknown"),
-            Logical::False => f.pad("false"),
+            Self::True => f.pad("true"),
+            Self::Unknown => f.pad("unknown"),
+            Self::False => f.pad("false"),
         }
     }
 }
 
 impl From<bool> for Logical {
-    fn from(b: bool) -> Logical {
-        match b {
-            true => Logical::True,
-            false => Logical::False,
-        }
+    fn from(b: bool) -> Self {
+        if b { Self::True } else { Self::False }
     }
 }
 
 impl From<Option<bool>> for Logical {
-    fn from(option: Option<bool>) -> Logical {
-        match option {
-            Some(b) => b.into(),
-            None => Logical::Unknown,
-        }
+    fn from(option: Option<bool>) -> Self {
+        option.map_or(Self::Unknown, Into::into)
     }
 }
 
 impl From<Logical> for Option<bool> {
-    fn from(l: Logical) -> Option<bool> {
+    fn from(l: Logical) -> Self {
         match l {
             Logical::Unknown => None,
             _ => Some(l == Logical::True),
@@ -110,11 +104,9 @@ impl BitAnd for Logical {
 
     fn bitand(self, other: Self) -> Self {
         match (self, other) {
-            (Logical::False, _) => Logical::False,
-            (_, Logical::False) => Logical::False,
-            (Logical::Unknown, _) => Logical::Unknown,
-            (_, Logical::Unknown) => Logical::Unknown,
-            (Logical::True, Logical::True) => Logical::True,
+            (Self::False, _) | (_, Self::False) => Self::False,
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
+            (Self::True, Self::True) => Self::True,
         }
     }
 }
@@ -124,35 +116,32 @@ impl BitOr for Logical {
 
     fn bitor(self, other: Self) -> Self {
         match (self, other) {
-            (Logical::True, _) => Logical::True,
-            (_, Logical::True) => Logical::True,
-            (Logical::Unknown, _) => Logical::Unknown,
-            (_, Logical::Unknown) => Logical::Unknown,
-            (Logical::False, Logical::False) => Logical::False,
+            (Self::True, _) | (_, Self::True) => Self::True,
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
+            (Self::False, Self::False) => Self::False,
         }
     }
 }
 
 impl BitXor for Logical {
-    type Output = Logical;
+    type Output = Self;
 
-    fn bitxor(self, other: Self) -> Logical {
+    fn bitxor(self, other: Self) -> Self {
         match (self, other) {
-            (Logical::Unknown, _) => Logical::Unknown,
-            (_, Logical::Unknown) => Logical::Unknown,
-            (_, _) => (self != other).into(),
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
+            _ => (self != other).into(),
         }
     }
 }
 
 impl Not for Logical {
-    type Output = Logical;
+    type Output = Self;
 
-    fn not(self) -> Logical {
+    fn not(self) -> Self {
         match self {
-            Logical::True => Logical::False,
-            Logical::Unknown => Logical::Unknown,
-            Logical::False => Logical::True,
+            Self::True => Self::False,
+            Self::Unknown => Self::Unknown,
+            Self::False => Self::True,
         }
     }
 }
@@ -170,7 +159,7 @@ struct SubVisitor;
 
 const VARIANTS: &[&str] = &["T", "True", "F", "False", "U", "Unknown"];
 
-impl<'de> serde::de::Visitor<'de> for SubVisitor {
+impl serde::de::Visitor<'_> for SubVisitor {
     type Value = SubLogical;
 
     fn expecting(
@@ -214,12 +203,9 @@ impl<'de> serde::de::Visitor<'de> for SubVisitor {
 impl From<SubLogical> for Logical {
     fn from(value: SubLogical) -> Self {
         match value {
-            SubLogical::T => Self::True,
-            SubLogical::True => Self::True,
-            SubLogical::F => Self::False,
-            SubLogical::False => Self::False,
-            SubLogical::U => Self::Unknown,
-            SubLogical::Unknown => Self::Unknown,
+            SubLogical::T | SubLogical::True => Self::True,
+            SubLogical::F | SubLogical::False => Self::False,
+            SubLogical::U | SubLogical::Unknown => Self::Unknown,
         }
     }
 }

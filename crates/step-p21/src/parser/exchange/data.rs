@@ -1,11 +1,19 @@
 use crate::{
-    ast::*,
-    parser::{combinator::*, exchange::*, token::*},
+    ast::{DataSection, EntityInstance, Record, SubSuperRecord},
+    parser::{
+        combinator::{ParseResult, char_, many0_, opt_, tag_, tuple_},
+        exchange::parameter_list,
+        token::{entity_instance_name, keyword},
+    },
 };
 use nom::{Parser, branch::alt};
 
-/// data_section = `DATA` \[ `(` [parameter_list] `)` \] `;`
-/// [entity_instance_list] `ENDSEC;` .
+/// `data_section` = `DATA` \[ `(` [`parameter_list`] `)` \] `;`
+/// [`entity_instance_list`] `ENDSEC;` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn data_section(input: &str) -> ParseResult<'_, DataSection> {
     tuple_((
         tag_("DATA"),
@@ -23,19 +31,33 @@ pub fn data_section(input: &str) -> ParseResult<'_, DataSection> {
     .parse(input)
 }
 
-/// entity_instance_list = { [entity_instance] } .
+/// `entity_instance_list` = { [`entity_instance`] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn entity_instance_list(
     input: &str,
 ) -> ParseResult<'_, Vec<EntityInstance>> {
     many0_(entity_instance).parse(input)
 }
 
-/// entity_instance = [simple_entity_instance] | [complex_entity_instance] .
+/// `entity_instance` = [`simple_entity_instance`] | [`complex_entity_instance`]
+/// .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn entity_instance(input: &str) -> ParseResult<'_, EntityInstance> {
     alt((simple_entity_instance, complex_entity_instance)).parse(input)
 }
 
-/// simple_entity_instance = [entity_instance_name] `=` [simple_record] `;` .
+/// `simple_entity_instance` = [`entity_instance_name`] `=` [`simple_record`]
+/// `;` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn simple_entity_instance(input: &str) -> ParseResult<'_, EntityInstance> {
     tuple_((entity_instance_name, char_('='), simple_record, char_(';')))
         .map(|(id, _eq, record, _semicolon)| EntityInstance::Simple {
@@ -45,7 +67,12 @@ pub fn simple_entity_instance(input: &str) -> ParseResult<'_, EntityInstance> {
         .parse(input)
 }
 
-/// complex_entity_instance = [entity_instance_name] `=` [subsuper_record] `;` .
+/// `complex_entity_instance` = [`entity_instance_name`] `=` [`subsuper_record`]
+/// `;` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn complex_entity_instance(input: &str) -> ParseResult<'_, EntityInstance> {
     tuple_((
         entity_instance_name,
@@ -60,7 +87,11 @@ pub fn complex_entity_instance(input: &str) -> ParseResult<'_, EntityInstance> {
     .parse(input)
 }
 
-/// simple_record = [keyword] `(` \[ [parameter_list] \] `)` .
+/// `simple_record` = [keyword] `(` \[ [`parameter_list`] \] `)` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn simple_record(input: &str) -> ParseResult<'_, Record> {
     tuple_((keyword, char_('('), opt_(parameter_list), char_(')')))
         .map(|(name, _open, parameter, _close)| Record {
@@ -70,12 +101,20 @@ pub fn simple_record(input: &str) -> ParseResult<'_, Record> {
         .parse(input)
 }
 
-/// simple_record_list = [simple_record] { [simple_record] } .
+/// `simple_record_list` = [`simple_record`] { [`simple_record`] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn simple_record_list(input: &str) -> ParseResult<'_, Vec<Record>> {
     many0_(simple_record).parse(input)
 }
 
-/// subsuper_record = `(` [simple_record_list] `)` .
+/// `subsuper_record` = `(` [`simple_record_list`] `)` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn subsuper_record(input: &str) -> ParseResult<'_, SubSuperRecord> {
     tuple_((char_('('), simple_record_list, char_(')')))
         .map(|(_open, records, _close)| SubSuperRecord(records))
@@ -88,19 +127,18 @@ mod tests {
 
     #[test]
     fn simple_recode1() {
-        let (res, record) = super::simple_record("A(1, 2.0)").finish().unwrap();
-        dbg!(record);
+        let (res, _record) =
+            super::simple_record("A(1, 2.0)").finish().unwrap();
         assert_eq!(res, "");
     }
 
     #[test]
     fn simple_recode2() {
-        let (res, record) = super::simple_record(
+        let (res, _record) = super::simple_record(
             "LENGTH_MEASURE_WITH_UNIT( LENGTH_MEASURE( 1.00000000000000 ), #359 )",
         )
         .finish()
         .unwrap();
-        dbg!(record);
         assert_eq!(res, "");
     }
 }

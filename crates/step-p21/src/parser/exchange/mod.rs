@@ -13,18 +13,25 @@ pub use parameter::*;
 pub use reference::*;
 
 use crate::{
-    ast::*,
-    parser::{combinator::*, token::*},
+    ast::Exchange,
+    parser::{
+        combinator::{ParseResult, many0_, opt_, tag_, tuple_},
+        token::signature_content,
+    },
 };
 use nom::Parser;
 
-/// exchange_file = `ISO-10303-21;`
-///                 [header_section]
-///              \[ [anchor_section] \]
-///              \[ [reference_section] \]
-///               { [data_section] }
+/// `exchange_file` = `ISO-10303-21;`
+///                 [`header_section`]
+///              \[ [`anchor_section`] \]
+///              \[ [`reference_section`] \]
+///               { [`data_section`] }
 ///                 `END-ISO-10303-21;`
-///               { signature_section } .
+///               { `signature_section` } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn exchange_file(input: &str) -> ParseResult<'_, Exchange> {
     tuple_((
         tag_("ISO-10303-21;"),
@@ -47,7 +54,11 @@ pub fn exchange_file(input: &str) -> ParseResult<'_, Exchange> {
     .parse(input)
 }
 
-/// signature_section  = `SIGNATURE` signature_content `ENDSEC;`.
+/// `signature_section`  = `SIGNATURE` `signature_content` `ENDSEC;`.
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn signature_section(input: &str) -> ParseResult<'_, String> {
     tuple_((tag_("SIGNATURE"), signature_content, tag_("ENDSEC;")))
         .map(|(_start, sig, _end)| sig)

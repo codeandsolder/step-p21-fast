@@ -1,6 +1,9 @@
 //! AST for entity declarations
 
-use crate::{ast::*, parser::*};
+use crate::{
+    ast::{Bound, Expression, Type, WhereClause},
+    parser::entity_decl,
+};
 
 /// Parsed result of EXPRESS's ENTITY
 #[derive(Debug, Clone, PartialEq)]
@@ -25,20 +28,19 @@ pub struct Entity {
 crate::derive_ast_component!(Entity, entity_decl);
 
 impl Entity {
-    pub fn has_supertype_decl(&self) -> bool {
-        if let Some(c) = &self.constraint {
-            match c {
+    #[must_use]
+    pub const fn has_supertype_decl(&self) -> bool {
+        match &self.constraint {
+            Some(
                 Constraint::AbstractSuperType(..)
-                | Constraint::SuperTypeRule(..) => true,
-                Constraint::AbstractEntity => false,
-            }
-        } else {
-            false
+                | Constraint::SuperTypeRule(..),
+            ) => true,
+            Some(Constraint::AbstractEntity) | None => false,
         }
     }
 }
 
-/// Intermediate output of [entity_body]
+/// Intermediate output of [`crate::parser::entity_body`]
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntityBody {
     pub attributes: Vec<EntityAttribute>,
@@ -48,7 +50,7 @@ pub struct EntityBody {
     pub where_clause: Option<WhereClause>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeDecl {
     Reference(String),
     Qualified {
@@ -56,7 +58,7 @@ pub enum AttributeDecl {
         group: String,
         /// Like `.x`
         attribute: String,
-        /// For [redeclared_attribute]
+        /// For [`crate::parser::redeclared_attribute`]
         rename: Option<String>,
     },
 }
@@ -65,8 +67,8 @@ pub enum AttributeDecl {
 impl<'a> PartialEq<&'a str> for AttributeDecl {
     fn eq(&self, other: &&'a str) -> bool {
         match self {
-            AttributeDecl::Reference(name) => other.eq(name),
-            _ => false,
+            Self::Reference(name) => other.eq(name),
+            Self::Qualified { .. } => false,
         }
     }
 }
@@ -95,7 +97,7 @@ pub struct InverseClause {
     pub attributes: Vec<InverseAttribute>,
 }
 
-/// Attribute of an inverse clause parsed by [inverse_attr]
+/// Attribute of an inverse clause parsed by [`crate::parser::inverse_attr`]
 ///
 /// From ISO 10303-11 document,
 ///
@@ -167,12 +169,12 @@ pub struct SubTypeDecl {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SuperTypeExpression {
     Reference(String),
-    AndOr { factors: Vec<SuperTypeExpression> },
-    And { terms: Vec<SuperTypeExpression> },
-    OneOf { exprs: Vec<SuperTypeExpression> },
+    AndOr { factors: Vec<Self> },
+    And { terms: Vec<Self> },
+    OneOf { exprs: Vec<Self> },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubTypeConstraint {
     pub name: String,
     pub entity: String,
@@ -181,12 +183,12 @@ pub struct SubTypeConstraint {
     pub expr: Option<SuperTypeExpression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UniqueClause {
     pub rules: Vec<UniqueRule>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UniqueRule {
     pub name: Option<String>,
     pub attributes: Vec<AttributeDecl>,

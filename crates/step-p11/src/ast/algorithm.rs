@@ -1,6 +1,10 @@
 //! AST for function, procedure, and rule declarations
 
-use crate::{ast::*, derive_ast_component, parser::*};
+use crate::{
+    ast::{Entity, Expression, Qualifier, SubTypeConstraint, Type, TypeDecl},
+    derive_ast_component,
+    parser::{function_decl, procedure_decl},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -8,7 +12,7 @@ pub enum Statement {
         name: String,
         dest: String,
         qualifiers: Vec<Qualifier>,
-        statements: Vec<Statement>,
+        statements: Vec<Self>,
     },
 
     Assignment {
@@ -18,19 +22,19 @@ pub enum Statement {
     },
 
     Compound {
-        statements: Vec<Statement>,
+        statements: Vec<Self>,
     },
 
     If {
         condition: Expression,
-        then_branch: Vec<Statement>,
-        else_branch: Option<Vec<Statement>>,
+        then_branch: Vec<Self>,
+        else_branch: Option<Vec<Self>>,
     },
 
     Case {
         selector: Expression,
-        actions: Vec<(Vec<Expression>, Statement)>,
-        otherwise: Option<Box<Statement>>,
+        actions: Vec<(Vec<Expression>, Self)>,
+        otherwise: Option<Box<Self>>,
     },
 
     Repeat {
@@ -38,7 +42,7 @@ pub enum Statement {
         /// can hold, and leaving it inline made EVERY statement ~408
         /// bytes against 120 for the next-largest variant.
         control: Box<RepeatControl>,
-        statements: Vec<Statement>,
+        statements: Vec<Self>,
     },
 
     Return {
@@ -138,7 +142,7 @@ pub struct LocalVariable {
     pub expr: Option<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InterfaceSpec {
     Reference {
         name: String,

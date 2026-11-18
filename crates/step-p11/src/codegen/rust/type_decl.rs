@@ -1,16 +1,16 @@
 use inflector::Inflector;
 use proc_macro2::TokenStream;
-use quote::*;
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 
-use crate::ir::*;
+use crate::ir::{Enumeration, Rename, Select, Simple, TypeDecl, TypeRef};
 
 impl ToTokens for TypeDecl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            TypeDecl::Simple(simple) => simple.to_tokens(tokens),
-            TypeDecl::Rename(rename) => rename.to_tokens(tokens),
-            TypeDecl::Enumeration(e) => e.to_tokens(tokens),
-            TypeDecl::Select(select) => select.to_tokens(tokens),
+            Self::Simple(simple) => simple.to_tokens(tokens),
+            Self::Rename(rename) => rename.to_tokens(tokens),
+            Self::Enumeration(e) => e.to_tokens(tokens),
+            Self::Select(select) => select.to_tokens(tokens),
         }
     }
 }
@@ -127,7 +127,13 @@ impl ToTokens for Select {
                             .push(quote! { #[holder(use_place_holder)] });
                     }
                 }
-                _ => unimplemented!(),
+                unsupported => {
+                    let detail = format!(
+                        "SELECT alternative must be a declared type or entity: {unsupported:?}"
+                    );
+                    tokens.append_all(quote! { compile_error!(#detail); });
+                    return;
+                }
             }
         }
         tokens.append_all(quote! {

@@ -1,6 +1,9 @@
-use super::*;
+use super::{
+    FieldType, HolderAttr, abort_call_site, as_holder_ident, as_holder_path,
+    as_visitor_ident, itertools_crate, serde_crate, step_p21_crate,
+};
 use inflector::Inflector;
-use proc_macro_error2::*;
+use proc_macro_error2::{OptionExt, ResultExt};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
@@ -44,9 +47,14 @@ impl Input {
             let HolderAttr { place_holder, .. } = HolderAttr::parse(&var.attrs);
             place_holders.push(place_holder);
 
-            assert_eq!(var.fields.len(), 1);
+            if var.fields.len() != 1 {
+                abort_call_site!(
+                    "holder enum variants must contain exactly one field"
+                );
+            }
             for f in &var.fields {
-                let ty = FieldType::try_from(f.ty.clone()).unwrap();
+                let ty = FieldType::try_from(f.ty.clone())
+                    .expect_or_abort("unsupported enum field type");
                 if let FieldType::Boxed(_) = ty {
                     if place_holder {
                         // ENTITY case
@@ -75,7 +83,7 @@ impl Input {
             }
         }
 
-        Input {
+        Self {
             name,
             table,
             ident: ident.clone(),
@@ -92,7 +100,7 @@ impl Input {
     }
 
     fn def_holder(&self) -> TokenStream2 {
-        let Input {
+        let Self {
             holder_ident,
             variants,
             holder_types,
@@ -108,7 +116,7 @@ impl Input {
     }
 
     fn impl_holder(&self) -> TokenStream2 {
-        let Input {
+        let Self {
             name,
             ident,
             holder_ident,
@@ -141,7 +149,7 @@ impl Input {
     }
 
     fn impl_deserialize(&self) -> TokenStream2 {
-        let Input {
+        let Self {
             name,
             holder_ident,
             holder_visitor_ident,
@@ -161,7 +169,7 @@ impl Input {
     }
 
     fn def_visitor(&self) -> TokenStream2 {
-        let Input {
+        let Self {
             holder_ident,
             holder_visitor_ident,
             name,
@@ -216,7 +224,7 @@ impl Input {
     }
 
     fn impl_entity_table(&self) -> TokenStream2 {
-        let Input {
+        let Self {
             ident,
             holder_ident,
             variants,
@@ -240,8 +248,10 @@ impl Input {
             if *place_holder {
                 vars.push(var);
                 exprs.push(expr);
-                if let FieldType::Boxed(path) =
-                    holder.clone().try_into().unwrap()
+                if let FieldType::Boxed(path) = holder
+                    .clone()
+                    .try_into()
+                    .expect_or_abort("invalid holder type")
                 {
                     holders.push(path.as_ref().clone().into());
                 } else {
@@ -305,5 +315,7 @@ pub fn derive_deserialize(
     _ident: &syn::Ident,
     _e: &syn::DataEnum,
 ) -> TokenStream2 {
-    unimplemented!()
+    abort_call_site!(
+        "standalone Deserialize derive is not supported for selection enums; use #[derive(Holder)] with #[holder(generate_deserialize)]"
+    )
 }

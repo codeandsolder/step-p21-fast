@@ -1,10 +1,9 @@
 use proc_macro_crate::{FoundCrate, crate_name};
-use proc_macro_error2::ResultExt;
+use proc_macro_error2::{ResultExt, abort_call_site};
 use proc_macro2::Span;
 use quote::format_ident;
-use std::convert::*;
 
-use super::field_type::*;
+use super::field_type::FieldType;
 
 pub fn as_holder_visitor(input: &syn::Ident) -> syn::Ident {
     format_ident!("{}HolderVisitor", input)
@@ -36,48 +35,23 @@ pub fn itertools_crate() -> syn::Path {
     syn::parse_quote!( #step_p21::itertools )
 }
 
-/// Returns `crate` or `::step_p21` as in step_p21 crate or not
+/// Returns `crate` or `::step_p21` according to the caller's crate name.
 pub fn step_p21_crate() -> syn::Path {
-    let path = crate_name("step-p21").unwrap();
-    match path {
-        FoundCrate::Itself => match std::env::var("CARGO_TARGET_TMPDIR") {
-            Ok(_) => {
-                // For tests and benches in step_p21 crate
-                //
-                // https://doc.rust-lang.org/cargo/reference/environment-variables.html
-                // > CARGO_TARGET_TMPDIR — Only set when building integration test or benchmark code.
-                let mut segments = syn::punctuated::Punctuated::new();
-                segments.push(syn::PathSegment {
-                    ident: syn::Ident::new("step_p21", Span::call_site()),
-                    arguments: syn::PathArguments::None,
-                });
-                syn::Path {
-                    leading_colon: Some(syn::token::PathSep::default()),
-                    segments,
-                }
-            }
-            Err(_) => {
-                let mut segments = syn::punctuated::Punctuated::new();
-                segments.push(syn::PathSegment {
-                    ident: syn::Ident::new("crate", Span::call_site()),
-                    arguments: syn::PathArguments::None,
-                });
-                syn::Path {
-                    leading_colon: None,
-                    segments,
-                }
-            }
-        },
+    match crate_name("step-p21").unwrap_or_else(|error| {
+        abort_call_site!("failed to locate step-p21 crate: {}", error)
+    }) {
+        // Cargo sets this for integration tests/benches, which reference their
+        // package as an external crate even though proc_macro_crate says
+        // Itself.
+        FoundCrate::Itself
+            if std::env::var_os("CARGO_TARGET_TMPDIR").is_some() =>
+        {
+            syn::parse_quote!(::step_p21)
+        }
+        FoundCrate::Itself => syn::parse_quote!(crate),
         FoundCrate::Name(name) => {
-            let mut segments = syn::punctuated::Punctuated::new();
-            segments.push(syn::PathSegment {
-                ident: syn::Ident::new(&name, Span::call_site()),
-                arguments: syn::PathArguments::None,
-            });
-            syn::Path {
-                leading_colon: Some(syn::token::PathSep::default()),
-                segments,
-            }
+            let ident = syn::Ident::new(&name, Span::call_site());
+            syn::parse_quote!(::#ident)
         }
     }
 }

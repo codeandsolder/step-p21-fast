@@ -1,10 +1,20 @@
-use super::attribute::*;
+use super::attribute::referenced_attribute;
 use crate::{
-    ast::*,
-    parser::{combinator::*, identifier::*},
+    ast::{UniqueClause, UniqueRule},
+    parser::{
+        combinator::{
+            EsprParser, ParseResult, char, comma_separated, many0, opt, tag,
+            tuple,
+        },
+        identifier::rule_label_id,
+    },
 };
 
-/// 333 unique_clause = UNIQUE [unique_rule] `;` { [unique_rule] `;` } .
+/// 333 `unique_clause` = UNIQUE [`unique_rule`] `;` { [`unique_rule`] `;` } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn unique_clause(input: &str) -> ParseResult<'_, UniqueClause> {
     tuple((tag("UNIQUE"), many0(tuple((unique_rule, char(';'))))))
         .map(|(_unique, seq)| UniqueClause {
@@ -13,8 +23,12 @@ pub fn unique_clause(input: &str) -> ParseResult<'_, UniqueClause> {
         .parse(input)
 }
 
-/// 334 unique_rule = \[ [rule_label_id] `:` \] [referenced_attribute] { `,`
-/// [referenced_attribute] } .
+/// 334 `unique_rule` = \[ [`rule_label_id`] `:` \] [`referenced_attribute`] {
+/// `,` [`referenced_attribute`] } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn unique_rule(input: &str) -> ParseResult<'_, UniqueRule> {
     tuple((
         opt(tuple((rule_label_id, char(':')))),

@@ -1,9 +1,14 @@
-use super::{namespace::*, scope::*, type_ref::*, *};
+use super::{
+    Constraints, Legalize, SemanticError,
+    namespace::Namespace,
+    scope::{Path, Scope},
+    type_ref::TypeRef,
+};
 use crate::ast;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entity {
-    /// Name of entity in snake_case
+    /// Name of entity in `snake_case`
     pub name: String,
     pub attributes: Vec<EntityAttribute>,
 
@@ -43,9 +48,11 @@ impl Legalize for EntityAttribute {
         let ty = TypeRef::legalize(ns, ss, scope, &attr.ty)?;
         let name = match &attr.name {
             ast::AttributeDecl::Reference(name) => name.clone(),
-            _ => unimplemented!(),
+            ast::AttributeDecl::Qualified {
+                attribute, rename, ..
+            } => rename.as_ref().unwrap_or(attribute).clone(),
         };
-        Ok(EntityAttribute {
+        Ok(Self {
             name,
             ty,
             optional: attr.optional,
@@ -96,7 +103,7 @@ impl Legalize for Entity {
                 Vec::new()
             };
 
-        Ok(Entity {
+        Ok(Self {
             name,
             attributes,
             constraints,
@@ -108,17 +115,16 @@ impl Legalize for Entity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{ast::SyntaxTree, ir::ScopeType};
 
     #[test]
     fn legalize() {
         let example = SyntaxTree::example();
         let ns = Namespace::new(&example);
         let ss = Constraints::new(&ns, &example).unwrap();
-        dbg!(&ns);
         let entity = &example.schemas[0].entities[0];
         let scope =
             Scope::root().pushed(ScopeType::Schema, &example.schemas[0].name);
-        let entity = Entity::legalize(&ns, &ss, &scope, entity).unwrap();
-        dbg!(&entity);
+        let _entity = Entity::legalize(&ns, &ss, &scope, entity).unwrap();
     }
 }

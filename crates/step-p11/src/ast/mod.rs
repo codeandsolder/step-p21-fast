@@ -14,11 +14,22 @@ pub use expression::*;
 pub use schema::*;
 pub use types::*;
 
-use crate::parser::{combinator::*, *};
+use crate::parser::{
+    combinator::{EsprParser, many1, spaces, tuple},
+    schema_decl,
+};
 use nom::Finish;
 
 pub trait Component: Sized {
+    ///
+    /// # Errors
+    /// Returns an error if the EXPRESS input is malformed or cannot be
+    /// tokenized.
     fn parse(input: &str) -> Result<(Self, Vec<Remark>), TokenizeFailed>;
+    ///
+    /// # Errors
+    /// Returns an error if the EXPRESS input is malformed or cannot be
+    /// tokenized.
     fn from_str(input: &str) -> Result<Self, TokenizeFailed> {
         let (component, _remarks) = Self::parse(input)?;
         Ok(component)
@@ -62,21 +73,34 @@ pub struct SyntaxTree {
 }
 
 impl SyntaxTree {
+    ///
+    /// # Errors
+    /// Returns an error if the EXPRESS input is malformed or cannot be
+    /// tokenized.
     pub fn parse(input: &str) -> Result<Self, nom::error::VerboseError<&str>> {
         let (residual, (schemas, remarks)) =
             tuple((spaces, many1(schema_decl), spaces))
                 .map(|(_start_space, schemas, _end_space)| schemas)
                 .parse(input)
                 .finish()?;
-        assert!(residual.is_empty());
-        Ok(SyntaxTree { schemas, remarks })
+        if !residual.is_empty() {
+            return Err(nom::error::VerboseError {
+                errors: vec![(
+                    residual,
+                    nom::error::VerboseErrorKind::Context(
+                        "trailing EXPRESS input",
+                    ),
+                )],
+            });
+        }
+        Ok(Self { schemas, remarks })
     }
 
     // Example syntax tree for easy testing
     //
     // FIXME Replace by e.g. proptest
     // https://github.com/AltSysrq/proptest
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn example() -> Self {
         Self::parse(
             r#"
@@ -130,7 +154,6 @@ mod tests {
             "#,
         )
         .unwrap();
-        dbg!(&st);
         assert_eq!(st.remarks.len(), 6);
     }
 }

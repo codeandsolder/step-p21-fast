@@ -66,6 +66,10 @@ use nom::Finish;
 /// let (residual, header) = step_p21::parser::parse_header(&step_str).unwrap();
 /// assert_eq!(residual, ""); // consume HEADER section of `step_str`
 /// ```
+///
+/// # Errors
+/// Returns an error if the STEP input is malformed or cannot be completely
+/// parsed.
 pub fn parse_header(input: &str) -> Result<(&str, Vec<ast::Record>)> {
     match exchange::header_section(input).finish() {
         Ok((input, records)) => Ok((input, records)),
@@ -74,6 +78,10 @@ pub fn parse_header(input: &str) -> Result<(&str, Vec<ast::Record>)> {
 }
 
 /// Parse entire STEP file
+///
+/// # Errors
+/// Returns an error if the STEP input is malformed or cannot be completely
+/// parsed.
 pub fn parse(input: &str) -> Result<ast::Exchange> {
     match exchange::exchange_file(input).finish() {
         Ok((_residual, ex)) => Ok(ex),

@@ -2,8 +2,15 @@ use super::{basis::simple_id, combinator::RawParseResult};
 use crate::ast::Remark;
 use itertools::Itertools;
 use nom::{
-    Parser, branch::alt, bytes::complete::*, character::complete::*,
-    combinator::opt, multi::*, sequence::*,
+    Parser,
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{
+        char, line_ending, multispace0, none_of, not_line_ending, space0,
+    },
+    combinator::opt,
+    multi::{many0, many1, separated_list1},
+    sequence::{delimited, tuple},
 };
 
 fn begin(input: &str) -> RawParseResult<'_, ()> {
@@ -13,7 +20,7 @@ fn begin(input: &str) -> RawParseResult<'_, ()> {
 fn end(input: &str) -> RawParseResult<'_, String> {
     tuple((many1(char('*')), char(')')))
         .map(|(stars, lparen)| {
-            format!("{}{}", stars.iter().collect::<String>(), lparen)
+            format!("{}{lparen}", stars.iter().collect::<String>())
                 .trim_end_matches("*)")
                 .to_string()
         })
@@ -22,11 +29,11 @@ fn end(input: &str) -> RawParseResult<'_, String> {
 
 fn middle_star(input: &str) -> RawParseResult<'_, String> {
     tuple((many1(char('*')), none_of("*)")))
-        .map(|(stars, c)| format!("{}{}", stars.iter().collect::<String>(), c))
+        .map(|(stars, c)| format!("{}{c}", stars.iter().collect::<String>()))
         .parse(input)
 }
 
-/// Quoted string like `\`*)\``
+/// Recognizes backtick-quoted text containing a literal closing comment marker.
 fn quoted(input: &str) -> RawParseResult<'_, String> {
     tuple((char('`'), many0(none_of("`")), char('`')))
         .map(|(_quote_start, chars, _quote_end)| {
@@ -42,7 +49,7 @@ fn non_quoted(input: &str) -> RawParseResult<'_, String> {
         .parse(input)
 }
 
-/// 999 embedded_remark
+/// 999 `embedded_remark`
 ///
 /// Extended the original definition
 ///
@@ -60,6 +67,10 @@ fn non_quoted(input: &str) -> RawParseResult<'_, String> {
 /// ```text
 /// (* The `(*` symbol starts a remark, and the `*)` symbol ends it *)
 /// ```
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn embedded_remark(input: &str) -> RawParseResult<'_, Remark> {
     tuple((
         begin,
@@ -71,14 +82,12 @@ pub fn embedded_remark(input: &str) -> RawParseResult<'_, Remark> {
     ))
     .map(|(_begin, _sp1, tag, _sp2, chars, end)| Remark {
         tag,
-        remark: format!("{}{}", chars.iter().join(""), end)
-            .trim()
-            .to_string(),
+        remark: format!("{}{end}", chars.iter().join("")).trim().to_string(),
     })
     .parse(input)
 }
 
-/// 999 tail_remark
+/// 999 `tail_remark`
 ///
 /// Extended the original definition
 ///
@@ -87,6 +96,10 @@ pub fn embedded_remark(input: &str) -> RawParseResult<'_, Remark> {
 /// ```
 ///
 /// to support `\r\n` case and unicode string
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn tail_remark(input: &str) -> RawParseResult<'_, Remark> {
     tuple((
         tag("--"),
@@ -104,16 +117,24 @@ pub fn tail_remark(input: &str) -> RawParseResult<'_, Remark> {
     .parse(input)
 }
 
-/// 147 remark_tag = `"` remark_ref { `.` remark_ref } `"` .
+/// 147 `remark_tag` = `"` `remark_ref` { `.` `remark_ref` } `"` .
 ///
 /// `remark_ref` is replaced by `simple_id` because it should be handled by
 /// following ir analysis phase.
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn remark_tag(input: &str) -> RawParseResult<'_, Vec<String>> {
     delimited(char('"'), separated_list1(char('.'), simple_id), char('"'))
         .parse(input)
 }
 
 /// Match to spaces or remarks
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn spaces_or_remarks(input: &str) -> RawParseResult<'_, Vec<Remark>> {
     tuple((
         many0(tuple((multispace0, alt((embedded_remark, tail_remark))))),
@@ -275,7 +296,6 @@ mod tests {
         .finish()
         .unwrap();
         assert_eq!(res, "");
-        dbg!(&remarks);
         assert_eq!(remarks.len(), 2);
     }
 }

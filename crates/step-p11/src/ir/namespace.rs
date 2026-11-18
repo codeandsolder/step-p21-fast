@@ -1,4 +1,7 @@
-use super::{SemanticError, scope::*};
+use super::{
+    SemanticError,
+    scope::{Path, Scope, ScopeType},
+};
 use crate::ast::{self, SyntaxTree};
 
 use std::collections::HashMap;
@@ -32,7 +35,7 @@ impl<'st> std::ops::Index<usize> for Namespace<'st> {
     }
 }
 
-impl<'st> std::ops::Index<&Scope> for Namespace<'st> {
+impl std::ops::Index<&Scope> for Namespace<'_> {
     type Output = [(ScopeType, String, usize)];
 
     fn index(&self, id: &Scope) -> &Self::Output {
@@ -41,6 +44,7 @@ impl<'st> std::ops::Index<&Scope> for Namespace<'st> {
 }
 
 impl<'st> Namespace<'st> {
+    #[must_use]
     pub fn new(st: &'st SyntaxTree) -> Self {
         let mut names = HashMap::new();
         let mut ast = Vec::new();
@@ -54,18 +58,14 @@ impl<'st> Namespace<'st> {
                 let path = Path::new(&here, ScopeType::Type, name);
                 let index = ast.len();
                 ast.push((path, Named::Type(ty)));
-                current_names.push((ScopeType::Type, name.to_string(), index));
+                current_names.push((ScopeType::Type, name.clone(), index));
             }
             for entity in &schema.entities {
                 let name = &entity.name;
                 let path = Path::new(&here, ScopeType::Entity, name);
                 let index = ast.len();
                 ast.push((path, Named::Entity(entity)));
-                current_names.push((
-                    ScopeType::Entity,
-                    name.to_string(),
-                    index,
-                ));
+                current_names.push((ScopeType::Entity, name.clone(), index));
             }
             names.insert(here, current_names);
         }
@@ -73,11 +73,13 @@ impl<'st> Namespace<'st> {
         Namespace { names, ast }
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.ast.is_empty()
     }
 
     /// Size of indexed AST
+    #[must_use]
     pub fn len(&self) -> usize {
         self.ast.len()
     }
@@ -87,6 +89,10 @@ impl<'st> Namespace<'st> {
     /// Error
     /// ------
     /// - If no corresponding definition found.
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn resolve(
         &self,
         scope: &Scope,
@@ -114,6 +120,10 @@ impl<'st> Namespace<'st> {
     /// Error
     /// ------
     /// - Input path is invalid, i.e. No item is specified by the path.
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn get(
         &self,
         path: &Path,

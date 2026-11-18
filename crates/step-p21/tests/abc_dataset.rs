@@ -1,35 +1,26 @@
-//! Integration test for parsing STEP file downloaded from ABC Dataset
+//! Integration tests for parsing STEP files from the ABC Dataset.
 
 use nom::Finish;
-use std::{fs, path::*};
+use std::{fs, path::PathBuf};
 use step_p21::parser;
 
 fn format_example() -> anyhow::Result<String> {
     let step_file = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/steps/00000050_80d90bfdd2e74e709956122a_step_000.step");
-    let step_str = fs::read_to_string(step_file)?;
-    Ok(step_str)
+    Ok(fs::read_to_string(step_file)?)
 }
 
 #[test]
 fn abc_dataset_data_line() -> anyhow::Result<()> {
-    let mut failed = false;
-    for line in format_example()?
+    for (index, line) in format_example()?
         .lines()
         .skip(7 /* lines before DATA; */)
-        .take(1671 /* lines in DATA secition */)
+        .take(1671 /* lines in DATA section */)
+        .enumerate()
     {
-        match parser::exchange::entity_instance(line).finish() {
-            Ok(_) => continue,
-            Err(err) => {
-                dbg!(line);
-                dbg!(err);
-                failed = true;
-            }
+        if let Err(error) = parser::exchange::entity_instance(line).finish() {
+            anyhow::bail!("ABC STEP entity line {}: {error:?}", index + 8);
         }
-    }
-    if failed {
-        anyhow::bail!("Parse failed");
     }
     Ok(())
 }
@@ -37,7 +28,13 @@ fn abc_dataset_data_line() -> anyhow::Result<()> {
 #[test]
 fn abc_dataset() -> anyhow::Result<()> {
     let step_str = format_example()?;
-    let exchange = parser::exchange::exchange_file(&step_str).finish().unwrap();
-    dbg!(exchange);
+    let (residual, _exchange) = parser::exchange::exchange_file(&step_str)
+        .finish()
+        .map_err(|error| anyhow::anyhow!("ABC STEP file parse: {error:?}"))?;
+    anyhow::ensure!(
+        residual.trim().is_empty(),
+        "ABC STEP parser left unconsumed input: {} bytes",
+        residual.len()
+    );
     Ok(())
 }

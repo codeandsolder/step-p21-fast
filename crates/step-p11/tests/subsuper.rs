@@ -24,7 +24,7 @@ fn subsuper() {
     let ir = IR::from_syntax_tree(&st).unwrap();
     let tt = ir.to_token_stream(CratePrefix::External).to_string();
 
-    let tt = rustfmt(tt);
+    let tt = rustfmt(tt).expect("format generated Rust");
 
     insta::assert_snapshot!(tt, @"
     pub mod test_schema {

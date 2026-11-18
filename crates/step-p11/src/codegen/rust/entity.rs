@@ -1,9 +1,9 @@
-use crate::ir::*;
+use crate::ir::{Entity, EntityAttribute, TypeRef};
 
 use check_keyword::CheckKeyword;
 use inflector::Inflector;
 use proc_macro2::TokenStream;
-use quote::*;
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 use syn::parse_quote;
 
 // Each component of Rust struct corresponding to ENTITY in EXPRESS
@@ -27,7 +27,7 @@ fn use_place_holder(ty: &TypeRef) -> bool {
         TypeRef::Set { base, .. } | TypeRef::List { base, .. } => {
             use_place_holder(base)
         }
-        _ => true,
+        TypeRef::Entity { .. } => true,
     }
 }
 
@@ -47,7 +47,7 @@ impl From<EntityAttribute> for Field {
             parse_quote! { #ty }
         };
 
-        Field {
+        Self {
             name,
             ty,
             attributes,
@@ -57,7 +57,7 @@ impl From<EntityAttribute> for Field {
 
 impl ToTokens for Field {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Field {
+        let Self {
             name,
             ty,
             attributes,
@@ -78,7 +78,6 @@ impl Entity {
 
     fn any_ident(&self) -> syn::Ident {
         // `Any` indentifier must be appears if the entity is supertype
-        assert!(!self.constraints.is_empty());
         format_ident!("{}Any", self.name.to_pascal_case())
     }
 
@@ -91,8 +90,6 @@ impl Entity {
     fn generate_any_enum(&self, tokens: &mut TokenStream) {
         let any = self.any_ident();
 
-        let mut fields =
-            vec![format_ident!("{}", self.name.as_str().into_safe())];
         let mut variants =
             vec![format_ident!("{}", self.name.to_pascal_case())];
         let mut constraints =
@@ -103,7 +100,6 @@ impl Entity {
                 TypeRef::Entity {
                     name, is_supertype, ..
                 } => {
-                    fields.push(format_ident!("{}", name.as_str().into_safe()));
                     variants.push(format_ident!("{}", name.to_pascal_case()));
                     if *is_supertype {
                         constraints.push(format_ident!(
@@ -245,19 +241,19 @@ impl Entity {
 
     fn derives(&self) -> Vec<syn::Path> {
         let mut derives = vec![
-            syn::parse_str("Debug").unwrap(),
-            syn::parse_str("Clone").unwrap(),
-            syn::parse_str("PartialEq").unwrap(),
-            syn::parse_str("::derive_new::new").unwrap(),
-            syn::parse_str("Holder").unwrap(),
+            syn::parse_quote!(Debug),
+            syn::parse_quote!(Clone),
+            syn::parse_quote!(PartialEq),
+            syn::parse_quote!(::derive_new::new),
+            syn::parse_quote!(Holder),
         ];
         if !self.supertypes.is_empty() {
-            derives.push(syn::parse_str("AsRef").unwrap());
-            derives.push(syn::parse_str("AsMut").unwrap());
+            derives.push(syn::parse_quote!(AsRef));
+            derives.push(syn::parse_quote!(AsMut));
         }
         if self.supertypes.len() == 1 {
-            derives.push(syn::parse_str("Deref").unwrap());
-            derives.push(syn::parse_str("DerefMut").unwrap());
+            derives.push(syn::parse_quote!(Deref));
+            derives.push(syn::parse_quote!(DerefMut));
         }
         derives
     }

@@ -2,11 +2,16 @@
   "ignorePatterns": [
     {
       "pattern": "^http://www.steptools.com/stds/"
+    },
+    {
+      "pattern": "^https://www\\.iso\\.org/standard/"
     }
   ],
   "httpHeaders": [
     {
-      "urls": ["https://crates.io/crates"],
+      "urls": [
+        "https://crates.io/crates"
+      ],
       "headers": {
         "Accept": "text/html"
       }

@@ -1,11 +1,20 @@
-use super::{basis::*, combinator::*};
-use crate::ast::*;
+use super::{
+    basis::{encoded_string_literal, simple_string_literal},
+    combinator::{
+        EsprParser, ParseResult, alt, not, peek, remarked, tag, tuple, value,
+    },
+};
+use crate::ast::{Literal, Logical};
 
-/// 251 literal = binary_literal | [logical_literal] | [real_literal] |
-/// [string_literal] .
+/// 251 literal = `binary_literal` | [`logical_literal`] | [`real_literal`] |
+/// [`string_literal`] .
 ///
 /// Integer value, e.g. `23`, will be recognized as a real number `23.0`.
-/// Use [integer_literal] if you wish to parse it as an integer.
+/// Use [`integer_literal`] if you wish to parse it as an integer.
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn literal(input: &str) -> ParseResult<'_, Literal> {
     // FIXME binary_literal,
     alt((
@@ -16,7 +25,7 @@ pub fn literal(input: &str) -> ParseResult<'_, Literal> {
     .parse(input)
 }
 
-/// 255 logical_literal = `FALSE` | `TRUE` | `UNKNOWN` .
+/// 255 `logical_literal` = `FALSE` | `TRUE` | `UNKNOWN` .
 ///
 /// The keyword must be followed by something that cannot continue an
 /// identifier, or `FALSE_POSITIVE` would tokenize as `FALSE` plus a stray
@@ -24,6 +33,10 @@ pub fn literal(input: &str) -> ParseResult<'_, Literal> {
 /// underscore**, so all three have to be excluded -- guarding against letters
 /// alone left identifiers like `TRUE_NORTH`, `TRUE2` and `UNKNOWN_9`
 /// unparsable.
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn logical_literal(input: &str) -> ParseResult<'_, Logical> {
     tuple((
         alt((
@@ -49,24 +62,46 @@ fn identifier_continuation(
     )
 }
 
-/// 141 integer_literal = digits .
+/// 141 `integer_literal` = digits .
 ///
 /// Negative integer, e.g. `-23`,
 /// will be represented by the combination of `-` unary operator and integer
 /// literal `23`
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn integer_literal(input: &str) -> ParseResult<'_, u64> {
-    remarked(nom::character::complete::digit1)
-        .map(|d: &str| d.parse().unwrap())
-        .parse(input)
+    let (rest, (digits, remarks)) =
+        remarked(nom::character::complete::digit1).parse(input)?;
+    let number = digits.parse::<u64>().map_err(|_| {
+        nom::Err::Failure(nom::error::VerboseError {
+            errors: vec![(
+                rest,
+                nom::error::VerboseErrorKind::Context(
+                    "integer-literal-overflow",
+                ),
+            )],
+        })
+    })?;
+    Ok((rest, (number, remarks)))
 }
 
-/// 142 real_literal = integer_literal | ( digits `.` \[ digits \] \[ `e` \[
+/// 142 `real_literal` = `integer_literal` | ( digits `.` \[ digits \] \[ `e` \[
 /// sign \] digits \] ) .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn real_literal(input: &str) -> ParseResult<'_, f64> {
     remarked(nom::number::complete::double).parse(input)
 }
 
-/// 310 string_literal = simple_string_literal | encoded_string_literal .
+/// 310 `string_literal` = `simple_string_literal` | `encoded_string_literal` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn string_literal(input: &str) -> ParseResult<'_, String> {
     alt((
         remarked(simple_string_literal),
@@ -77,6 +112,17 @@ pub fn string_literal(input: &str) -> ParseResult<'_, String> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn rejects_out_of_range_integer_without_panicking() {
+        assert!(super::integer_literal("18446744073709551616").is_err());
+        assert!(super::integer_literal("99999999999999999999999999").is_err());
+        assert_eq!(
+            super::integer_literal("18446744073709551615").unwrap().1.0,
+            u64::MAX
+        );
+    }
+
     use nom::Finish;
 
     #[test]

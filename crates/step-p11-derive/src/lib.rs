@@ -1,10 +1,11 @@
 use proc_macro::TokenStream;
-use step_p11::{ast::SyntaxTree, codegen::rust::*, ir::IR};
+use step_p11::{ast::SyntaxTree, codegen::rust::CratePrefix, ir::IR};
 
-/// Compile inline EXPRESS into Rust code, and expand it on the call site.
+/// Compile inline EXPRESS into Rust code at the invocation site.
 ///
-/// Example
-/// --------
+/// # Errors
+/// Reports a compile-time diagnostic with the original string-literal span
+/// when the EXPRESS grammar or semantic analysis fails.
 ///
 /// ```
 /// step_p11_derive::inline_express!(
@@ -19,15 +20,29 @@ use step_p11::{ast::SyntaxTree, codegen::rust::*, ir::IR};
 /// ```
 #[proc_macro]
 pub fn inline_express(input: TokenStream) -> TokenStream {
-    // FIXME Use proc-macro-error
-    //
-    // step_p11::Result does not match its requirement currently. We have to fix
-    // it.
-    //
-    let input: syn::LitStr = syn::parse(input)
-        .expect("inline_express! argument must be string literal");
-    let st = SyntaxTree::parse(&input.value()).expect("Tokenize failed");
-    let ir =
-        IR::from_syntax_tree(&st).expect("Failed in semantic analysis phase");
+    let input = syn::parse_macro_input!(input as syn::LitStr);
+    let source = input.value();
+    let st = match SyntaxTree::parse(&source) {
+        Ok(st) => st,
+        Err(error) => {
+            return syn::Error::new(
+                input.span(),
+                format!("EXPRESS syntax error: {error:?}"),
+            )
+            .into_compile_error()
+            .into();
+        }
+    };
+    let ir = match IR::from_syntax_tree(&st) {
+        Ok(ir) => ir,
+        Err(error) => {
+            return syn::Error::new(
+                input.span(),
+                format!("EXPRESS semantic error: {error}"),
+            )
+            .into_compile_error()
+            .into();
+        }
+    };
     ir.to_token_stream(CratePrefix::External).into()
 }

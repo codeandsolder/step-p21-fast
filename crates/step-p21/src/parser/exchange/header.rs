@@ -1,29 +1,44 @@
 use crate::{
-    ast::*,
-    parser::{combinator::*, exchange::*},
+    ast::Record,
+    parser::{
+        combinator::{ParseResult, char_, many1_, tag_, tuple_},
+        exchange::simple_record,
+    },
 };
 use nom::Parser;
 
-/// header_section = `HEADER;` [header_entity] [header_entity] [header_entity]
-/// \[ [header_entity_list] \] `ENDSEC;` .
+/// `header_section` = `HEADER;` [`header_entity`] [`header_entity`]
+/// [`header_entity`] \[ [`header_entity_list`] \] `ENDSEC;` .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn header_section(input: &str) -> ParseResult<'_, Vec<Record>> {
     tuple_((tag_("HEADER;"), header_entity_list, tag_("ENDSEC;")))
         .map(|(_start, entities, _close)| entities)
         .parse(input)
 }
 
-/// header_entity_list = [header_entity] { [header_entity] } .
+/// `header_entity_list` = [`header_entity`] { [`header_entity`] } .
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn header_entity_list(input: &str) -> ParseResult<'_, Vec<Record>> {
     many1_(header_entity).parse(input)
 }
 
-/// header_entity = [simple_record] `;` .
+/// `header_entity` = [`simple_record`] `;` .
 ///
 /// Changed from the following original definition due to the duplication
 ///
 /// ```text
 /// header_entity = keyword ( [ parameter_list ] ) ; .
 /// ```
+///
+/// # Errors
+/// Returns a parse error when the input does not satisfy the corresponding STEP
+/// grammar production.
 pub fn header_entity(input: &str) -> ParseResult<'_, Record> {
     tuple_((simple_record, char_(';')))
         .map(|(record, _semicolon)| record)

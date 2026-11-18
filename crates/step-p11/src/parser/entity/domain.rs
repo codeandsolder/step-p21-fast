@@ -1,7 +1,15 @@
-use super::super::{combinator::*, expression::*, identifier::*};
-use crate::ast::*;
+use super::super::{
+    combinator::{EsprParser, ParseResult, char, many0, opt, tag, tuple},
+    expression::expression,
+    identifier::rule_label_id,
+};
+use crate::ast::{DomainRule, WhereClause};
 
-/// 338 where_clause = WHERE [domain_rule] `;` { [domain_rule] `;` } .
+/// 338 `where_clause` = WHERE [`domain_rule`] `;` { [`domain_rule`] `;` } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn where_clause(input: &str) -> ParseResult<'_, WhereClause> {
     tuple((tag("WHERE"), many0(tuple((domain_rule, char(';'))))))
         .map(|(_where, rules)| {
@@ -12,7 +20,11 @@ pub fn where_clause(input: &str) -> ParseResult<'_, WhereClause> {
         .parse(input)
 }
 
-/// 202 domain_rule = \[ [rule_label_id] `:` \] [expression] .
+/// 202 `domain_rule` = \[ [`rule_label_id`] `:` \] [expression] .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn domain_rule(input: &str) -> ParseResult<'_, DomainRule> {
     tuple((opt(tuple((rule_label_id, char(':')))), expression))
         .map(|(opt, expr)| {
@@ -68,7 +80,7 @@ mod tests {
 
     #[test]
     fn where_clause3() {
-        let (residual, (w, _remarks)) = super::where_clause(
+        let (residual, (_w, _remarks)) = super::where_clause(
             r#"
             WHERE
                 wr1 : VALUE_UNIQUE(s);
@@ -78,6 +90,5 @@ mod tests {
         .finish()
         .unwrap();
         assert_eq!(residual, "");
-        dbg!(w);
     }
 }

@@ -13,7 +13,7 @@ version = "0.1.1"
 edition = "2024"
 rust-version = "1.85"
 license = "Apache-2.0"
-repository = "https://github.com/virtualritz/step-p21"
+repository = "https://github.com/codeandsolder/step-p21-fast"
 authors = [
   "Moritz Moeller <virtualritz@protonmail.com>",
   "Toshiki Teramura <teramura@ricos.co.jp>",
@@ -38,7 +38,6 @@ derive_more = { version = "2", features = ["full"] }
 Inflector = "0.11"
 insta = "1"
 itertools = "0.15"
-katexit = "0.1"
 maplit = "1"
 nom = "8"
 # nom 8 moved `VerboseError` and `convert_error` out of the core crate.

@@ -26,8 +26,9 @@ impl fmt::Display for TokenizeFailed {
 impl std::error::Error for TokenizeFailed {}
 
 impl TokenizeFailed {
+    #[must_use]
     pub fn new(input: &str, err: nom::error::VerboseError<&str>) -> Self {
-        TokenizeFailed {
+        Self {
             rendered_error: nom::error::convert_error(input, err),
         }
     }

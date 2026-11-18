@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::ast::{Parameter, Record, SubSuperRecord};
 use serde::{
     de::{self, IntoDeserializer},
     forward_to_deserialize_any,
@@ -37,7 +37,7 @@ impl<'record> SubSuperRecordDeserializer<'record> {
 }
 
 // Entry point of `visit_map`
-impl<'de, 'record> de::MapAccess<'de> for SubSuperRecordDeserializer<'record> {
+impl<'de> de::MapAccess<'de> for SubSuperRecordDeserializer<'_> {
     type Error = crate::error::Error;
 
     fn next_key_seed<K>(

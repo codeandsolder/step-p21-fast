@@ -16,10 +16,11 @@
 //!
 //! These entities are defined in [ISO-10303-21 "8.2 Header section declarations"](https://www.iso.org/standard/63141.html)
 //! using EXPRESS schemas.
-//! Although we can generate corresponding Rust struct using step_p11 compiler,
-//! we write these definitions manually to keep development process simple.
+//! Although we can generate corresponding Rust struct using `step_p11`
+//! compiler, we write these definitions manually to keep development process
+//! simple.
 
-use crate::{ast::*, error::Result};
+use crate::{ast::Record, error::Result};
 use serde::Deserialize;
 
 /// File description
@@ -33,7 +34,7 @@ use serde::Deserialize;
 ///   implementation_level : STRING (256) ;
 /// END_ENTITY;
 /// ```
-#[derive(Debug, Clone, PartialEq, step_p21_derive::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, step_p21_derive::Deserialize)]
 pub struct FileDescription {
     pub description: Vec<String>,
     pub implementation_level: String,
@@ -58,7 +59,7 @@ pub struct FileDescription {
 /// TYPE time_stamp_text = STRING(256);
 /// END_TYPE;
 /// ```
-#[derive(Debug, Clone, PartialEq, step_p21_derive::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, step_p21_derive::Deserialize)]
 pub struct FileName {
     pub name: String,
     /// ISO-8601 formatted date and time specifying when the exchange structure
@@ -84,7 +85,7 @@ pub struct FileName {
 /// TYPE schema_name = STRING(1024);
 /// END_TYPE;
 /// ```
-#[derive(Debug, Clone, PartialEq, step_p21_derive::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, step_p21_derive::Deserialize)]
 pub struct FileSchema {
     pub schema: Vec<String>,
 }
@@ -93,23 +94,28 @@ pub struct FileSchema {
 ///
 /// There is a schema for HEADER section,
 /// but we do not generate this structure from it to simplify build process.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Header {
-    pub file_description: FileDescription,
-    pub file_name: FileName,
-    pub file_schema: FileSchema,
+    pub description: FileDescription,
+    pub name: FileName,
+    pub schema: FileSchema,
 }
 
 impl Header {
+    ///
+    /// # Errors
+    /// Returns an error if required header records are missing or malformed.
     pub fn from_records(records: &[Record]) -> Result<Self> {
-        assert!(records.len() >= 3);
-        let file_description = FileDescription::deserialize(&records[0])?;
-        let file_name = FileName::deserialize(&records[1])?;
-        let file_schema = FileSchema::deserialize(&records[2])?;
-        Ok(Header {
-            file_description,
-            file_name,
-            file_schema,
+        let [description_record, name_record, schema_record, ..] = records
+        else {
+            return Err(crate::error::Error::MissingHeaderRecords {
+                found: records.len(),
+            });
+        };
+        Ok(Self {
+            description: FileDescription::deserialize(description_record)?,
+            name: FileName::deserialize(name_record)?,
+            schema: FileSchema::deserialize(schema_record)?,
         })
     }
 }
@@ -117,6 +123,14 @@ impl Header {
 #[cfg(test)]
 mod tests {
     use nom::Finish;
+
+    #[test]
+    fn missing_required_records_return_structured_errors() {
+        assert!(matches!(
+            super::Header::from_records(&[]),
+            Err(crate::error::Error::MissingHeaderRecords { found: 0 })
+        ));
+    }
 
     #[test]
     fn header() {
@@ -132,7 +146,6 @@ mod tests {
             crate::parser::exchange::header_section(header)
                 .finish()
                 .unwrap();
-        let header = super::Header::from_records(&records).unwrap();
-        dbg!(header);
+        let _header = super::Header::from_records(&records).unwrap();
     }
 }

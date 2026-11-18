@@ -42,7 +42,7 @@
 //! There will exist non-exclusive reference between entity instances generally,
 //! and thus the data must be regarded as a graph.
 //!
-//! step_p21 will parse this data section into following tables:
+//! `step_p21` will parse this data section into following tables:
 //!
 //! | Table (a) | x (i64) | y (i64) |
 //! |:----------|:--------|:--------|
@@ -69,7 +69,7 @@
 //! ```
 //!
 //! The ENTITY `b` has to support both reference and inline struct like as `#4`
-//! and `#6`. For this purpose, [PlaceHolder] exists:
+//! and `#6`. For this purpose, [`PlaceHolder`] exists:
 //!
 //! ```
 //! # use step_p21::ast::Name;
@@ -97,12 +97,15 @@
 //! }
 //! ```
 //!
-//! There also a function [IntoOwned::into_owned] to convert a holder struct
+//! There also a function [`IntoOwned::into_owned`] to convert a holder struct
 //! `BHolder` into owned struct `B`.
 //! `AHolder` will also be introduced to keep consistency.
-//! These are automated by [step_p21_derive::Holder] proc-macro.
+//! These are automated by [`step_p21_derive::Holder`] proc-macro.
 
-use crate::{ast::*, error::*};
+use crate::{
+    ast::{DataSection, Name, Record},
+    error::{Error, Result},
+};
 use serde::{
     Deserialize,
     de::{self, IntoDeserializer, VariantAccess},
@@ -113,6 +116,10 @@ use std::{collections::HashMap, fmt, marker::PhantomData};
 pub trait IntoOwned: Clone + 'static {
     type Owned;
     type Table;
+    ///
+    /// # Errors
+    /// Returns an error when a referenced entity is missing or cannot be
+    /// converted to its owned representation.
     fn into_owned(self, table: &Self::Table) -> Result<Self::Owned>;
 }
 
@@ -139,6 +146,10 @@ pub trait WithVisitor {
 /// Trait for tables which pulls an entity (`T`) from an entity id (`u64`)
 pub trait EntityTable<T: Holder<Table = Self>> {
     /// Get owned entity from table
+    ///
+    /// # Errors
+    /// Returns an error when a referenced entity is missing or cannot be
+    /// converted to its owned representation.
     fn get_owned(&self, entity_id: u64) -> Result<T::Owned>;
 
     /// Get owned entities as an iterator
@@ -147,16 +158,28 @@ pub trait EntityTable<T: Holder<Table = Self>> {
     ) -> Box<dyn Iterator<Item = Result<T::Owned>> + 'table>;
 }
 
-/// Create Table from [DataSection]
+/// Create Table from [`DataSection`]
 pub trait TableInit: Default {
+    ///
+    /// # Errors
+    /// Returns an error if an entity cannot be decoded or inserted into the
+    /// table.
     fn append_data_section(&mut self, section: &DataSection) -> Result<()>;
 
+    ///
+    /// # Errors
+    /// Returns an error if an entity cannot be decoded or inserted into the
+    /// table.
     fn from_data_section(section: &DataSection) -> Result<Self> {
         let mut table = Self::default();
         table.append_data_section(section)?;
         Ok(table)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if an entity cannot be decoded or inserted into the
+    /// table.
     fn from_data_sections(sections: &[DataSection]) -> Result<Self> {
         let mut table = Self::default();
         for section in sections {
@@ -166,24 +189,28 @@ pub trait TableInit: Default {
     }
 }
 
+///
+/// # Errors
+/// Returns an error when a referenced entity is missing or cannot be converted
+/// to its owned representation.
 pub fn get_owned<T, Table>(
     table: &Table,
-    map: &HashMap<u64, T>,
+    map: &HashMap<u64, T, impl std::hash::BuildHasher>,
     entity_id: u64,
 ) -> Result<T::Owned>
 where
     T: Holder<Table = Table>,
     Table: EntityTable<T>,
 {
-    match map.get(&entity_id) {
-        Some(holder) => holder.clone().into_owned(table),
-        None => Err(Error::UnknownEntity(entity_id)),
-    }
+    map.get(&entity_id).map_or_else(
+        || Err(Error::UnknownEntity(entity_id)),
+        |holder| holder.clone().into_owned(table),
+    )
 }
 
 pub fn owned_iter<'table, T, Table>(
     table: &'table Table,
-    map: &'table HashMap<u64, T>,
+    map: &'table HashMap<u64, T, impl std::hash::BuildHasher>,
 ) -> Box<dyn Iterator<Item = Result<T::Owned>> + 'table>
 where
     T: Holder<Table = Table>,
@@ -196,9 +223,13 @@ where
     )
 }
 
-/// Helper function to implement TableInit trait
+/// Helper function to implement `TableInit` trait
+///
+/// # Errors
+/// Returns an error if a record cannot be decoded or its entity identifier is
+/// duplicated.
 pub fn insert_record<'de, T: de::Deserialize<'de>>(
-    table: &mut HashMap<u64, T>,
+    table: &mut HashMap<u64, T, impl std::hash::BuildHasher>,
     id: u64,
     record: &Record,
 ) -> crate::error::Result<()> {
@@ -213,7 +244,7 @@ pub fn insert_record<'de, T: de::Deserialize<'de>>(
 }
 
 /// Owned value or reference through entity/value id
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlaceHolder<T> {
     Ref(Name),
     Owned(T),
@@ -234,24 +265,24 @@ where
     ///   table
     fn into_owned(self, table: &Self::Table) -> Result<T::Owned> {
         match self {
-            PlaceHolder::Ref(id) => match id {
+            Self::Ref(id) => match id {
                 Name::Entity(id) => table.get_owned(id),
-                _ => unimplemented!("ENTITY is only supported now"),
+                reference => Err(Error::UnsupportedReference(reference)),
             },
-            PlaceHolder::Owned(a) => a.into_owned(table),
+            Self::Owned(a) => a.into_owned(table),
         }
     }
 }
 
 impl<T: Holder> From<T> for PlaceHolder<T> {
     fn from(owned: T) -> Self {
-        PlaceHolder::Owned(owned)
+        Self::Owned(owned)
     }
 }
 
 impl<T> From<Name> for PlaceHolder<T> {
     fn from(rvalue: Name) -> Self {
-        PlaceHolder::Ref(rvalue)
+        Self::Ref(rvalue)
     }
 }
 
@@ -276,7 +307,7 @@ struct PlaceHolderVisitor<T> {
 
 impl<T> Default for PlaceHolderVisitor<T> {
     fn default() -> Self {
-        PlaceHolderVisitor {
+        Self {
             phantom: PhantomData,
         }
     }

@@ -1,7 +1,7 @@
 //! Parser combinator for EXPRESS language
 //!
 //! This submodule responsible for tokenize of EXPRESS language input into a
-//! [SyntaxTree] struct, and provides parser combinators based on [nom](https://github.com/Geal/nom).
+//! [`SyntaxTree`] struct, and provides parser combinators based on [nom](https://github.com/Geal/nom).
 //!
 //! Most parsers correspond to EXPRESS language grammers defined in
 //! [ISO-10303-11]. Each documentation of the parsers contains wirth syntax
@@ -27,7 +27,7 @@
 //! -- this is called "tail remark"
 //! ```
 //!
-//! Each of remarks are handled by [embedded_remark] and [tail_remark].
+//! Each of remarks are handled by [`embedded_remark`] and [`tail_remark`].
 //! For handling remarks appear in arbitrary position,
 //! we re-define nom's combinators in [combinator] to stack remarks onto a
 //! `Vec<Remark>` in appeared order.

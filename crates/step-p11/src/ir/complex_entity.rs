@@ -1,14 +1,13 @@
 //! Partial complex entities described in ISO-10303-11 Annex B
-use super::*;
+use super::{ConstraintExpr, Namespace, Path, SemanticError};
 
 use itertools::Itertools;
 use std::cmp::Ordering;
 
-#[cfg_attr(doc, katexit::katexit)]
 /// Partial complex entity data type, e.g. $A \And B \And C$ in ISO document
 ///
 /// Each component, e.g. $A$, will be represented by an index.
-/// $\And$ operation is implemented by [std::ops::BitAnd] trait.
+/// $\And$ operation is implemented by [`std::ops::BitAnd`] trait.
 /// This satisfies following equations:
 ///
 /// - $A \And A = A$
@@ -57,19 +56,21 @@ impl Ord for PartialComplexEntity {
     fn cmp(&self, rhs: &Self) -> Ordering {
         match Ord::cmp(&self.indices.len(), &rhs.indices.len()) {
             Ordering::Equal => Ord::cmp(&self.indices, &rhs.indices),
-            a @ Ordering::Less | a @ Ordering::Greater => a,
+            a @ (Ordering::Less | Ordering::Greater) => a,
         }
     }
 }
 
 impl PartialComplexEntity {
+    #[must_use]
     pub fn new(indices: &[usize]) -> Self {
-        PartialComplexEntity {
-            indices: indices.iter().cloned().dedup().collect(),
+        Self {
+            indices: indices.iter().copied().dedup().collect(),
         }
     }
 
     /// Restore Path from namespace index
+    #[must_use]
     pub fn as_path(&self, ns: &Namespace) -> Vec<Path> {
         self.indices
             .iter()
@@ -82,8 +83,8 @@ impl PartialComplexEntity {
 }
 
 impl From<&[usize]> for PartialComplexEntity {
-    fn from(indices: &[usize]) -> PartialComplexEntity {
-        PartialComplexEntity::new(indices)
+    fn from(indices: &[usize]) -> Self {
+        Self::new(indices)
     }
 }
 
@@ -93,20 +94,19 @@ impl std::ops::BitAnd for PartialComplexEntity {
     fn bitand(mut self, mut rhs: Self) -> Self {
         self.indices.append(&mut rhs.indices);
         self.indices.sort_unstable();
-        PartialComplexEntity {
+        Self {
             indices: self.indices.into_iter().dedup().collect(),
         }
     }
 }
 
-#[cfg_attr(doc, katexit::katexit)]
 /// Instantiable subtypes described by a list of partial complex entity, e.g.
 /// $[A, B & C]$
 ///
 /// This has several operation described in ISO-10303-11 annex B,
 /// $+$, $-$, $\And$, and $/$.
 ///
-/// - $A + [B_1, B_2] = [B_1, B_2] + A = [A, B_1, B_2]$
+/// - $A + [`B_1`, `B_2`] = [`B_1`, `B_2`] + A = [A, `B_1`, `B_2`]$
 ///
 /// ```
 /// # use step_p11::ir::*;
@@ -122,7 +122,8 @@ impl std::ops::BitAnd for PartialComplexEntity {
 /// );
 /// ```
 ///
-/// - $A \And [B_1, B_2] = [B_1, B_2] \And A = [A \And B_1, A \And B_2]$
+/// - $A \And [`B_1`, `B_2`] = [`B_1`, `B_2`] \And A = [A \And `B_1`, A \And
+///   `B_2`]$
 ///
 /// ```
 /// # use step_p11::ir::*;
@@ -138,7 +139,7 @@ impl std::ops::BitAnd for PartialComplexEntity {
 /// );
 /// ```
 ///
-/// - $[A_1, A_2] + [B_1, B_2] = [A_1, A_2, B_1, B_2]$
+/// - $[`A_1`, `A_2`] + [`B_1`, `B_2`] = [`A_1`, `A_2`, `B_1`, `B_2`]$
 ///
 /// ```
 /// # use step_p11::ir::*;
@@ -156,8 +157,8 @@ impl std::ops::BitAnd for PartialComplexEntity {
 /// );
 /// ```
 ///
-/// - $[A_1, A_2] \And [B_1, B_2] = [A_1 \And B_1, A_1 \And B_2, A_2 \And B_1,
-///   A_2 \And B_2]$
+/// - $[`A_1`, `A_2`] \And [`B_1`, `B_2`] = [`A_1` \And `B_1`, `A_1` \And `B_2`,
+///   `A_2` \And `B_1`, `A_2` \And `B_2`]$
 ///
 /// ```
 /// # use step_p11::ir::*;
@@ -242,7 +243,7 @@ impl std::ops::BitAnd for PartialComplexEntity {
 /// );
 /// ```
 ///
-/// - $[A_1, A_2, B_1, B_2] − [A_2, B_1] = [A_1, B_2]$
+/// - $[`A_1`, `A_2`, `B_1`, `B_2`] − [`A_2`, `B_1`] = [`A_1`, `B_2`]$
 ///
 /// ```
 /// # use step_p11::ir::*;
@@ -265,6 +266,7 @@ pub struct Instantiables {
 }
 
 impl Instantiables {
+    #[must_use]
     pub fn new(pces: &[PartialComplexEntity]) -> Self {
         Self {
             parts: pces.to_vec(),
@@ -272,6 +274,7 @@ impl Instantiables {
     }
 
     /// Create from single index
+    #[must_use]
     pub fn single(index: usize) -> Self {
         Self {
             parts: vec![PartialComplexEntity::new(&[index])],
@@ -279,6 +282,7 @@ impl Instantiables {
     }
 
     /// ONEOF(A, B, C) -> [A, B, C]
+    #[must_use]
     pub fn oneof(parts: Vec<Self>) -> Self {
         let mut is = Self::default();
         for p in parts {
@@ -288,59 +292,37 @@ impl Instantiables {
     }
 
     /// A AND B AND C -> [A & B & C]
+    #[must_use]
     pub fn and(terms: Vec<Self>) -> Self {
-        assert!(terms.len() >= 2);
-        let mut constrait = None;
-        for c in terms {
-            constrait = Some(if let Some(constrait) = constrait {
-                constrait & c
-            } else {
-                c
-            });
-        }
-        constrait.unwrap()
+        terms
+            .into_iter()
+            .reduce(std::ops::BitAnd::bitand)
+            .unwrap_or_default()
     }
 
     /// A ANDOR B ANDOR C -> [A, B, C, A & B, B & C, A & C, A & B & C]
-    pub fn andor(factors: Vec<Self>) -> Self {
-        assert!(!factors.is_empty());
-        // A ANDOR B → [A, B, A & B]
-        //
-        // This means `ANDOR` of n-factors will produce $2^n-1$ terms like:
-        //
-        // | A | B | ANDOR |
-        // |---|---|-------|
-        // | + | - | A     |
-        // | - | + | B     |
-        // | + | + | A & B |
-        //
-        let n = factors.len() as u32;
-        let mut constrait = Self::default();
-        for mut i in 1..(2usize.pow(n)) {
-            // i=0b01 -> A
-            // i=0b10 -> B
-            // i=0b11 -> A & B, and so on.
-            let mut c: Option<Self> = None;
-            for factor in &factors {
-                if i % 2 == 1 {
-                    c = Some(if let Some(pre) = c {
-                        pre & factor.clone()
-                    } else {
-                        factor.clone()
-                    });
-                }
-                i >>= 1;
-            }
-            constrait = constrait + c.unwrap();
+    #[must_use]
+    pub fn andor(factors: &[Self]) -> Self {
+        // Maintain the set of all nonempty combinations incrementally.
+        // This avoids bit-shift overflow when there are more factors than
+        // machine-word bits and deduplicates as each factor is introduced.
+        let mut combinations = Self::default();
+        for factor in factors {
+            let joint = combinations.clone() & factor.clone();
+            combinations = combinations + factor.clone() + joint;
         }
-        constrait
+        combinations
     }
 
+    ///
+    /// # Errors
+    /// Returns a semantic analysis error if types, entities, or constraints
+    /// cannot be resolved.
     pub fn from_constraint_expr(
         ns: &Namespace,
         expr: &ConstraintExpr,
     ) -> Result<Self, SemanticError> {
-        use ConstraintExpr::*;
+        use ConstraintExpr::{And, AndOr, OneOf, Reference};
         match expr {
             Reference(path) => {
                 let (_ast, index) = ns.get(path)?;
@@ -365,12 +347,13 @@ impl Instantiables {
                     .iter()
                     .map(|e| Self::from_constraint_expr(ns, e))
                     .collect::<Result<Vec<Self>, SemanticError>>()?;
-                Ok(Self::andor(exprs))
+                Ok(Self::andor(&exprs))
             }
         }
     }
 
     /// Restore Path from namespace index
+    #[must_use]
     pub fn as_path(&self, ns: &Namespace) -> Vec<Vec<Path>> {
         self.parts.iter().map(|pce| pce.as_path(ns)).collect()
     }
@@ -391,7 +374,7 @@ impl<'a> FromIterator<&'a PartialComplexEntity> for Instantiables {
 impl std::ops::Add for Instantiables {
     type Output = Self;
 
-    fn add(mut self, mut rhs: Instantiables) -> Self {
+    fn add(mut self, mut rhs: Self) -> Self {
         self.parts.append(&mut rhs.parts);
         Self {
             parts: self.parts.into_iter().sorted().dedup().collect(),
@@ -422,16 +405,16 @@ impl std::ops::Add<Instantiables> for PartialComplexEntity {
 
 // [A, B] & [C, D] = [A & C, A & D, B & C, B & D]
 impl std::ops::BitAnd for Instantiables {
-    type Output = Instantiables;
+    type Output = Self;
 
-    fn bitand(self, rhs: Instantiables) -> Instantiables {
+    fn bitand(self, rhs: Self) -> Self {
         let mut parts = Vec::with_capacity(self.parts.len() * rhs.parts.len());
         for p in &self.parts {
             for q in &rhs.parts {
                 parts.push(p.clone() & q.clone());
             }
         }
-        Instantiables {
+        Self {
             parts: parts.into_iter().sorted().dedup().collect(),
         }
     }
@@ -439,10 +422,10 @@ impl std::ops::BitAnd for Instantiables {
 
 // [A, B] & C = [A & C, B & C]
 impl std::ops::BitAnd<PartialComplexEntity> for Instantiables {
-    type Output = Instantiables;
+    type Output = Self;
 
-    fn bitand(self, q: PartialComplexEntity) -> Instantiables {
-        Instantiables {
+    fn bitand(self, q: PartialComplexEntity) -> Self {
+        Self {
             parts: self
                 .parts
                 .into_iter()
@@ -466,8 +449,8 @@ impl std::ops::BitAnd<Instantiables> for PartialComplexEntity {
 impl std::ops::Sub for Instantiables {
     type Output = Self;
 
-    fn sub(self, rhs: Instantiables) -> Self {
-        Instantiables {
+    fn sub(self, rhs: Self) -> Self {
+        Self {
             parts: self
                 .parts
                 .into_iter()
@@ -481,7 +464,7 @@ impl std::ops::Sub<PartialComplexEntity> for Instantiables {
     type Output = Self;
 
     fn sub(self, q: PartialComplexEntity) -> Self {
-        Instantiables {
+        Self {
             parts: self.parts.into_iter().filter(|p| p != &q).collect(),
         }
     }
@@ -491,8 +474,8 @@ impl std::ops::Sub<PartialComplexEntity> for Instantiables {
 impl std::ops::Div for Instantiables {
     type Output = Self;
 
-    fn div(self, rhs: Instantiables) -> Self {
-        Instantiables {
+    fn div(self, rhs: Self) -> Self {
+        Self {
             parts: self
                 .parts
                 .into_iter()
@@ -514,10 +497,10 @@ impl std::ops::Div for Instantiables {
 
 // [A, A & B, A & C, A & B & D, B & C, D] / A = [A, A & B, A & C, A & B & D]
 impl std::ops::Div<PartialComplexEntity> for Instantiables {
-    type Output = Instantiables;
+    type Output = Self;
 
-    fn div(self, rhs: PartialComplexEntity) -> Instantiables {
-        Instantiables {
+    fn div(self, rhs: PartialComplexEntity) -> Self {
+        Self {
             parts: self
                 .parts
                 .into_iter()
@@ -528,5 +511,28 @@ impl std::ops::Div<PartialComplexEntity> for Instantiables {
                 })
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Instantiables;
+
+    #[test]
+    fn andor_covers_every_nonempty_factor_combination() {
+        let a = Instantiables::single(1);
+        let b = Instantiables::single(2);
+        let c = Instantiables::single(3);
+        let actual = Instantiables::andor(&[a.clone(), b.clone(), c.clone()]);
+        let expected = a.clone()
+            + b.clone()
+            + c.clone()
+            + (a.clone() & b.clone())
+            + (a.clone() & c.clone())
+            + (b.clone() & c.clone())
+            + (a & b & c);
+        assert_eq!(actual, expected);
+        assert!(Instantiables::andor(&[]).parts.is_empty());
+        assert!(Instantiables::and(Vec::new()).parts.is_empty());
     }
 }

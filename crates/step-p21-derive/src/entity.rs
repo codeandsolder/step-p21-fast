@@ -1,9 +1,12 @@
 use inflector::Inflector;
-use proc_macro_error2::OptionExt;
+use proc_macro_error2::{OptionExt, ResultExt};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 
-use super::*;
+use super::{
+    FieldType, HolderAttr, abort_call_site, as_holder_ident, as_holder_visitor,
+    as_visitor_ident, serde_crate, step_p21_crate,
+};
 
 pub fn derive_deserialize(
     ident: &syn::Ident,
@@ -73,21 +76,26 @@ impl FieldEntries {
                 field.ident.as_ref().expect_or_abort("st is not struct");
             attributes.push(ident.clone());
 
-            let ft: FieldType = field.ty.clone().try_into().unwrap();
+            let ft: FieldType = field
+                .ty
+                .clone()
+                .try_into()
+                .expect_or_abort("unsupported entity field type");
 
             let HolderAttr { place_holder, .. } =
                 HolderAttr::parse(&field.attrs);
             if place_holder {
                 match &ft {
                     FieldType::Path(_) => {
-                        into_owned
-                            .push(quote! { #ident.into_owned(#table_arg)? });
+                        into_owned.push(
+                            quote! { #ident: #ident.into_owned(#table_arg)? },
+                        );
                     }
                     FieldType::Optional(_) => {
-                        into_owned.push(quote! { #ident.map(|holder| holder.into_owned(#table_arg)).transpose()? });
+                        into_owned.push(quote! { #ident: #ident.map(|holder| holder.into_owned(#table_arg)).transpose()? });
                     }
                     FieldType::List(_) => into_owned.push(quote! {
-                        #ident
+                        #ident: #ident
                             .into_iter()
                             .map(|v| v.into_owned(#table_arg))
                             .collect::<::std::result::Result<Vec<_>, _>>()?
@@ -102,7 +110,7 @@ impl FieldEntries {
                 holder_types.push(ft.into());
             }
         }
-        FieldEntries {
+        Self {
             attributes,
             holder_types,
             into_owned,
@@ -144,25 +152,15 @@ pub fn impl_holder(
     let step_p21 = step_p21_crate();
 
     quote! {
-        // `#into_owned` expands to the field's own identifier whenever the field
-        // needs no conversion, so this emits `field: field` and trips
-        // `clippy::redundant_field_names` in the CONSUMER. `#[automatically_derived]`
-        // does not help -- it marks the impl for rustdoc and a few rustc
-        // diagnostics, and suppresses no clippy lint.
-        //
-        // Generated code must not lint in the crate that invoked the derive. Before
-        // this, one consumer collected 152 errors whose spans all pointed at its
-        // field DECLARATIONS, because that is where the macro expands -- so the only
-        // remedies available to it were editing 152 sites it did not write, or a
-        // blanket allow that would also hide its own redundancy.
+        // Emit shorthand for unchanged fields, so generated impls don't
+        // trigger redundant_field_names diagnostics in downstream crates.
         #[automatically_derived]
-        #[allow(clippy::redundant_field_names)]
         impl #step_p21::tables::IntoOwned for #holder_ident {
             type Table = #table;
             type Owned = #ident;
             fn into_owned(self, #table_arg: &Self::Table) -> #step_p21::error::Result<Self::Owned> {
                 let #holder_ident { #(#attributes),* } = self;
-                Ok(#ident { #(#attributes: #into_owned),* })
+                Ok(#ident { #(#into_owned),* })
             }
         }
         #[automatically_derived]

@@ -1,21 +1,35 @@
-use super::attribute::*;
+use super::attribute::attribute_decl;
 use crate::{
-    ast::*,
-    parser::{combinator::*, identifier::*, types::*},
+    ast::{AggregationOption, InverseAttribute, InverseClause},
+    parser::{
+        combinator::{
+            EsprParser, ParseResult, alt, char, many1, opt, tag, tuple,
+        },
+        identifier::{attribute_ref, entity_ref},
+        types::bound_spec,
+    },
 };
 
-/// 249 inverse_clause = INVERSE [inverse_attr] { [inverse_attr] } .
+/// 249 `inverse_clause` = INVERSE [`inverse_attr`] { [`inverse_attr`] } .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn inverse_clause(input: &str) -> ParseResult<'_, InverseClause> {
     tuple((tag("INVERSE"), many1(inverse_attr)))
         .map(|(_inverse, attributes)| InverseClause { attributes })
         .parse(input)
 }
 
-/// 248 inverse_attr = [attribute_decl] `:`
-///                  \[ ( SET | BAG ) \[ [bound_spec] \] OF \]
-///                  [entity_ref] FOR
-///                  \[ [entity_ref] `.` \]
-///                  [attribute_ref] `;` .
+/// 248 `inverse_attr` = [`attribute_decl`] `:`
+///                  \[ ( SET | BAG ) \[ [`bound_spec`] \] OF \]
+///                  [`entity_ref`] FOR
+///                  \[ [`entity_ref`] `.` \]
+///                  [`attribute_ref`] `;` .
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn inverse_attr(input: &str) -> ParseResult<'_, InverseAttribute> {
     let aggregation_option = opt(tuple((
         alt((tag("SET"), tag("BAG"))),

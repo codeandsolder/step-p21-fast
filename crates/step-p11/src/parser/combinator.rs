@@ -1,6 +1,6 @@
 //! Parser combinators for EXPRESS language with remarks
 
-use super::remark::*;
+use super::remark::spaces_or_remarks;
 use crate::ast::Remark;
 use nom::{IResult, error::VerboseError, sequence::pair};
 use std::marker::PhantomData;
@@ -18,7 +18,7 @@ pub struct Map<'a, P, O1, O2, F> {
 }
 
 // not use `#[derive(Close)]` becuase it requires `O1, O2: Clone`
-impl<'a, P: Clone, O1, O2, F: Clone> Clone for Map<'a, P, O1, O2, F> {
+impl<P: Clone, O1, O2, F: Clone> Clone for Map<'_, P, O1, O2, F> {
     fn clone(&self) -> Self {
         Map {
             parser: self.parser.clone(),
@@ -47,6 +47,10 @@ where
 pub trait EsprParser<'a, Output>:
     nom::Parser<&'a str, (Output, Vec<Remark>), VerboseError<&'a str>> + Clone
 {
+    ///
+    /// # Errors
+    /// Returns a parse error if the input does not satisfy the corresponding
+    /// EXPRESS grammar production.
     fn parse(&mut self, input: &'a str) -> ParseResult<'a, Output> {
         nom::Parser::parse(self, input)
     }
@@ -70,12 +74,16 @@ impl<'a, Output, T> EsprParser<'a, Output> for T where
 {
 }
 
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn eof(input: &str) -> ParseResult<'_, &str> {
     let (input, _) = nom::combinator::eof(input)?;
     Ok((input, ("", Vec::new())))
 }
 
-/// Lift up nom parser into [EsprParser] by adding empty remark.
+/// Lift up nom parser into [`EsprParser`] by adding empty remark.
 ///
 /// Be sure that `Vec::new` does not allocates memory until any member will be
 /// pushed. <https://doc.rust-lang.org/std/vec/struct.Vec.html#method.new>
@@ -113,6 +121,7 @@ where
     }
 }
 
+#[must_use]
 pub fn tag<'a>(tag_str: &'static str) -> impl EsprParser<'a, &'a str> {
     move |input: &'a str| {
         let (input, tag) = nom::bytes::complete::tag_no_case(tag_str)(input)?;
@@ -120,6 +129,7 @@ pub fn tag<'a>(tag_str: &'static str) -> impl EsprParser<'a, &'a str> {
     }
 }
 
+#[must_use]
 pub fn is_not<'a>(pattern: &'static str) -> impl EsprParser<'a, &'a str> {
     move |input: &'a str| {
         let (input, tag) = nom::bytes::complete::is_not(pattern)(input)?;
@@ -131,7 +141,7 @@ pub fn not<'a>(
     f: impl EsprParser<'a, &'a str>,
 ) -> impl EsprParser<'a, &'a str> {
     move |input: &'a str| {
-        let (input, _) = nom::combinator::not(f.clone())(input)?;
+        let (input, ()) = nom::combinator::not(f.clone())(input)?;
         Ok((input, ("", Vec::new())))
     }
 }
@@ -145,6 +155,7 @@ pub fn peek<'a>(
     }
 }
 
+#[must_use]
 pub fn char<'a>(c: char) -> impl EsprParser<'a, char> {
     move |input| {
         let (input, c) = nom::character::complete::char(c)(input)?;
@@ -152,6 +163,10 @@ pub fn char<'a>(c: char) -> impl EsprParser<'a, char> {
     }
 }
 
+///
+/// # Errors
+/// Returns a parse error if the input does not satisfy the corresponding
+/// EXPRESS grammar production.
 pub fn spaces(input: &str) -> ParseResult<'_, ()> {
     let (input, remarks) = spaces_or_remarks(input)?;
     Ok((input, ((), remarks)))
@@ -260,12 +275,16 @@ pub fn semicolon_separated<'a, O>(
     separated(';', f)
 }
 
-/// Merge tupled EsprParser into a single EsprParser
+/// Merge tupled `EsprParser` into a single `EsprParser`
 pub fn tuple<'a, O, List: Tuple<'a, O>>(mut l: List) -> impl EsprParser<'a, O> {
     move |input| l.parse(input)
 }
 
 pub trait Tuple<'a, O>: Clone {
+    ///
+    /// # Errors
+    /// Returns a parse error if the input does not satisfy the corresponding
+    /// EXPRESS grammar production.
     fn parse(&mut self, input: &'a str) -> ParseResult<'a, O>;
 }
 
@@ -348,6 +367,10 @@ pub fn alt<'a, O, List: Alt<'a, O>>(l: List) -> impl EsprParser<'a, O> {
 }
 
 pub trait Alt<'a, O>: Clone {
+    ///
+    /// # Errors
+    /// Returns a parse error if the input does not satisfy the corresponding
+    /// EXPRESS grammar production.
     fn choice(self, input: &'a str) -> ParseResult<'a, O>;
 }
 
