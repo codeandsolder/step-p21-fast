@@ -212,12 +212,11 @@ impl ser::Serializer for &mut RecordSerializer {
     ) -> Result<Self::SerializeStruct> {
         // Rust's serde names are commonly PascalCase; Part 21 records use
         // uppercase keywords with underscores, also for nested typed values.
-        let name = if let Some(extension) = name.strip_prefix('!') {
-            // A user-defined STEP keyword retains its '!' identity.
-            format!("!{}", extension.to_screaming_snake_case())
-        } else {
-            name.to_screaming_snake_case()
-        };
+        // A user-defined STEP keyword retains its '!' identity.
+        let name = name.strip_prefix('!').map_or_else(
+            || name.to_screaming_snake_case(),
+            |extension| format!("!{}", extension.to_screaming_snake_case()),
+        );
         if self.name.is_empty() {
             self.name = name;
         } else {

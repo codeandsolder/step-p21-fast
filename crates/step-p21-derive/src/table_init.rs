@@ -51,21 +51,7 @@ pub fn derive_table_init(ast: &syn::DeriveInput) -> TokenStream2 {
     // A Part 21 entity instance ID is unique across the entire exchange
     // structure, not just within a map for one EXPRESS entity type. Recover
     // existing IDs when appending a later DATA section, too.
-    let members: Vec<syn::Member> = match &st.fields {
-        syn::Fields::Named(fields) => fields
-            .named
-            .iter()
-            .map(|field| {
-                syn::Member::Named(
-                    field.ident.clone().expect_or_abort("named table field"),
-                )
-            })
-            .collect(),
-        syn::Fields::Unnamed(fields) => (0..fields.unnamed.len())
-            .map(|index| syn::Member::Unnamed(syn::Index::from(index)))
-            .collect(),
-        syn::Fields::Unit => abort_call_site!("Unit struct is not supported."),
-    };
+    let members = table_members(&st.fields);
 
     let step_p21 = step_p21_crate();
     quote! {
@@ -126,6 +112,25 @@ pub fn derive_table_init(ast: &syn::DeriveInput) -> TokenStream2 {
                 Self::from_data_section(&data_sec)
             }
         }
+    }
+}
+
+/// Enumerate the storage maps independently from their dispatch rules.
+fn table_members(fields: &syn::Fields) -> Vec<syn::Member> {
+    match fields {
+        syn::Fields::Named(fields) => fields
+            .named
+            .iter()
+            .map(|field| {
+                syn::Member::Named(
+                    field.ident.clone().expect_or_abort("named table field"),
+                )
+            })
+            .collect(),
+        syn::Fields::Unnamed(fields) => (0..fields.unnamed.len())
+            .map(|index| syn::Member::Unnamed(syn::Index::from(index)))
+            .collect(),
+        syn::Fields::Unit => abort_call_site!("Unit struct is not supported."),
     }
 }
 
