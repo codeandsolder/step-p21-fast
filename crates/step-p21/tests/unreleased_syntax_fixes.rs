@@ -104,3 +104,20 @@ fn a_file_using_both_parses_whole() {
         "the empty aggregate must survive as an empty list",
     );
 }
+
+#[test]
+fn whole_exchange_rejects_unconsumed_input() {
+    for suffix in ["garbage", "/* unfinished", "SIGNATURE malformed"] {
+        let input = format!("{STEP}{suffix}");
+        assert!(
+            matches!(
+                parse(&input),
+                Err(step_p21::error::Error::ExtraInputRemaining(remaining))
+                    if remaining == suffix
+            ),
+            "{suffix}"
+        );
+    }
+    let input = format!("{STEP} /* trailing comment */ \n \t");
+    assert!(parse(&input).is_ok());
+}

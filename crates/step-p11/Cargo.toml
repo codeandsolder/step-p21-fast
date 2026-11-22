@@ -10,7 +10,6 @@ name = "step-p11"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-rust-version.workspace = true
 
 description   = "EXPRESS Language compiler"
 documentation = "https://docs.rs/step-p11"

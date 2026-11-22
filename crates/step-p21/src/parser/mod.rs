@@ -37,11 +37,11 @@ pub mod token;
 
 use crate::{
     ast,
-    error::{Result, TokenizeFailed},
+    error::{Error, Result, TokenizeFailed},
 };
-use nom::Finish;
+use nom::{Finish, Parser, sequence::terminated};
 
-/// Parse HEADER section
+/// Parse a HEADER section and return the unconsumed input.
 ///
 /// Example
 /// --------
@@ -68,8 +68,7 @@ use nom::Finish;
 /// ```
 ///
 /// # Errors
-/// Returns an error if the STEP input is malformed or cannot be completely
-/// parsed.
+/// Returns an error if the header section is malformed.
 pub fn parse_header(input: &str) -> Result<(&str, Vec<ast::Record>)> {
     match exchange::header_section(input).finish() {
         Ok((input, records)) => Ok((input, records)),
@@ -83,8 +82,14 @@ pub fn parse_header(input: &str) -> Result<(&str, Vec<ast::Record>)> {
 /// Returns an error if the STEP input is malformed or cannot be completely
 /// parsed.
 pub fn parse(input: &str) -> Result<ast::Exchange> {
-    match exchange::exchange_file(input).finish() {
-        Ok((_residual, ex)) => Ok(ex),
-        Err(e) => Err(TokenizeFailed::new(input, e).into()),
+    let (remaining, exchange) =
+        terminated(exchange::exchange_file, combinator::ignorable)
+            .parse(input)
+            .finish()
+            .map_err(|error| TokenizeFailed::new(input, error))?;
+    if remaining.is_empty() {
+        Ok(exchange)
+    } else {
+        Err(Error::ExtraInputRemaining(remaining.to_owned()))
     }
 }

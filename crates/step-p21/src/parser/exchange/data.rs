@@ -23,9 +23,7 @@ pub fn data_section(input: &str) -> ParseResult<'_, DataSection> {
         tag_("ENDSEC;"),
     ))
     .map(|(_start, meta, _semicolon, entities, _end)| DataSection {
-        meta: meta
-            .map(|(_open, params, _close)| params)
-            .unwrap_or_default(),
+        meta: meta.map_or_else(Vec::new, |(_open, params, _close)| params),
         entities,
     })
     .parse(input)

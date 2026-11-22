@@ -199,6 +199,9 @@ pub enum SemanticError {
     #[error("Invalid path: {0}")]
     InvalidPath(Path),
 
+    #[error("Invalid namespace index: {index}")]
+    InvalidNamespaceIndex { index: usize },
+
     #[error("Unsupported {context}: {detail}")]
     UnsupportedConstruct {
         context: &'static str,

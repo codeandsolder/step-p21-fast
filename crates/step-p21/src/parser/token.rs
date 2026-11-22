@@ -3,19 +3,20 @@
 use crate::{
     ast::{Name, Uri},
     parser::{
-        basic::{digit, lower, upper},
+        basic::{lower, upper},
         combinator::ParseResult,
     },
 };
 use nom::{
     Parser,
     branch::alt,
-    bytes::complete::tag,
-    character::complete::{
-        char, digit0, digit1, multispace0, none_of, satisfy,
-    },
-    combinator::{map, map_res, opt},
-    multi::{many0, many1},
+    character::complete::{char, digit0, digit1, multispace0},
+    combinator::{map_res, opt},
+};
+
+use std::simd::{
+    Simd,
+    cmp::{SimdPartialEq, SimdPartialOrd},
 };
 
 /// sign = `+` | `-` .
@@ -27,7 +28,8 @@ pub fn sign(input: &str) -> ParseResult<'_, char> {
     alt((char('+'), char('-'))).parse(input)
 }
 
-/// integer = \[ [sign] \] [digit] { [digit] } .
+/// integer = \[ [sign] \] [`digit`](super::basic::digit) {
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -53,7 +55,8 @@ fn parse_signed_integer(sign: Option<char>, digits: &str) -> Result<i64, ()> {
     }
 }
 
-/// `E` \[ [sign] \] [digit] { [digit] } .
+/// `E` \[ [sign] \] [`digit`](super::basic::digit) {
+/// [`digit`](super::basic::digit) } .
 fn exponent(input: &str) -> ParseResult<'_, i64> {
     map_res(
         (char('E'), multispace0, opt(sign), multispace0, digit1),
@@ -62,8 +65,10 @@ fn exponent(input: &str) -> ParseResult<'_, i64> {
     .parse(input)
 }
 
-/// real = \[ [sign] \] [digit] { [digit] } `.` { [digit] } \[ `E` \[ [sign] \]
-/// [digit] { [digit] } \] .
+/// real = \[ [sign] \] [`digit`](super::basic::digit) {
+/// [`digit`](super::basic::digit) } `.` { [`digit`](super::basic::digit) } \[
+/// `E` \[ [sign] \] [`digit`](super::basic::digit) {
+/// [`digit`](super::basic::digit) } \] .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -107,7 +112,7 @@ fn finite_real(rest: &str, number: f64) -> ParseResult<'_, f64> {
 /// EXPRESS string-token grammar:
 ///
 /// ```text
-/// string = "'" { [special] | [digit] | [space] | [lower] | [upper] |
+/// string = "'" { [special] | [`digit`](super::basic::digit) | [space] | [lower] | [upper] |
 ///   high_codepoint | [apostrophe] [apostrophe] |
 ///   [reverse_solidus] [reverse_solidus] | control_directive } "'" .
 /// ```
@@ -117,14 +122,22 @@ fn finite_real(rest: &str, number: f64) -> ParseResult<'_, f64> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn string(input: &str) -> ParseResult<'_, String> {
-    let escaped_char = map(tag("''"), |_| '\''); // Parse '' as a single '
-    let normal_char = none_of("'"); // Parse any character except '
-
-    let string_content = many0(escaped_char.or(normal_char.map(|c| c)));
-
-    (char('\''), string_content, char('\''))
-        .map(|(_start, s, _end)| s.iter().collect())
-        .parse(input)
+    let (mut rest, _) = char('\'')(input)?;
+    let mut decoded = String::new();
+    loop {
+        // Search whole UTF-8 spans instead of building an intermediate
+        // Vec<char> and speculatively parsing an escape at every character.
+        let end = rest.find('\'').unwrap_or(rest.len());
+        let (text, closing) = rest.split_at(end);
+        let (after, _) = char('\'')(closing)?;
+        decoded.push_str(text);
+        if let Some(after_escape) = after.strip_prefix('\'') {
+            decoded.push('\'');
+            rest = after_escape;
+        } else {
+            return Ok((after, decoded));
+        }
+    }
 }
 
 /// resource = `<` `UNIVERSAL_RESOURCE_IDENTIFIER` `>` .
@@ -135,12 +148,10 @@ pub fn string(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn resource(input: &str) -> ParseResult<'_, Uri> {
-    (char('<'), many0(none_of(">")), char('>'))
-        .map(|(_start, s, _end)| Uri(s.iter().collect()))
-        .parse(input)
+    anchor_name.map(Uri).parse(input)
 }
 
-/// enumeration = `.` [upper] { [upper] | [digit] } `.` .
+/// enumeration = `.` [upper] { [upper] | [`digit`](super::basic::digit) } `.` .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -173,7 +184,8 @@ fn u64_overflow(
     numeric_error(input, "u64-overflow")
 }
 
-/// `entity_instance_name` = `#` ( [digit] ) { [digit] } .
+/// `entity_instance_name` = `#` ( [`digit`](super::basic::digit) ) {
+/// [`digit`](super::basic::digit) } .
 ///
 /// As discussed in ISO-10303-21 6.4.4.3 Entity instance names,
 ///
@@ -197,7 +209,8 @@ pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
     name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
 }
 
-/// `value_instance_name` = `@` ( [digit] ) { [digit] } .
+/// `value_instance_name` = `@` ( [`digit`](super::basic::digit) ) {
+/// [`digit`](super::basic::digit) } .
 ///
 /// Leading zeros are ignored like as [`entity_instance_name`].
 ///
@@ -216,7 +229,8 @@ pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
     name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
 }
 
-/// `constant_entity_name` = `#` ( [upper] ) { [upper] | [digit] } .
+/// `constant_entity_name` = `#` ( [upper] ) { [upper] |
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -227,7 +241,8 @@ pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
         .parse(input)
 }
 
-/// `constant_value_name` = `@` ( [upper] ) { [upper] | [digit] } .
+/// `constant_value_name` = `@` ( [upper] ) { [upper] |
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -276,9 +291,11 @@ pub fn rhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn anchor_name(input: &str) -> ParseResult<'_, String> {
-    (char('<'), many0(none_of(">")), char('>'))
-        .map(|(_start, s, _end)| s.iter().collect())
-        .parse(input)
+    let (remaining, _) = char('<')(input)?;
+    let end = remaining.find('>').unwrap_or(remaining.len());
+    let (name, closing) = remaining.split_at(end);
+    let (rest, _) = char('>')(closing)?;
+    Ok((rest, name.to_owned()))
 }
 
 /// keyword = [`user_defined_keyword`] | [`standard_keyword`] .
@@ -296,7 +313,7 @@ pub fn keyword(input: &str) -> ParseResult<'_, String> {
     }
 }
 
-/// `standard_keyword` = [upper] { [upper] | [digit] } .
+/// `standard_keyword` = [upper] { [upper] | [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -309,14 +326,37 @@ pub fn standard_keyword(input: &str) -> ParseResult<'_, String> {
 /// Return the source span so both keyword forms allocate exactly once.
 fn standard_keyword_span(input: &str) -> ParseResult<'_, &str> {
     let (rest, _) = upper(input)?;
-    let (rest, _) = nom::bytes::complete::take_while(
-        |c: char| matches!(c, 'A'..='Z' | '_' | '0'..='9'),
-    )
-    .parse(rest)?;
+    let rest = &rest[keyword_tail_len(rest.as_bytes())..];
     Ok((rest, &input[..input.len() - rest.len()]))
 }
 
-/// `user_defined_keyword` = `!` [upper] { [upper] | [digit] } .
+/// Length of the initial ASCII keyword continuation. Any non-ASCII byte
+/// terminates the span, so the result is also a UTF-8 character boundary.
+fn keyword_tail_len(input: &[u8]) -> usize {
+    const LANES: usize = 16;
+    let (chunks, tail) = input.as_chunks::<LANES>();
+    for (index, &chunk) in chunks.iter().enumerate() {
+        let bytes = Simd::from_array(chunk);
+        // SIMD integer subtraction wraps. Subtracting the lower endpoint
+        // converts each closed ASCII range into one unsigned comparison.
+        let uppercase =
+            (bytes - Simd::splat(b'A')).simd_le(Simd::splat(b'Z' - b'A'));
+        let digits =
+            (bytes - Simd::splat(b'0')).simd_le(Simd::splat(b'9' - b'0'));
+        let valid = uppercase | digits | bytes.simd_eq(Simd::splat(b'_'));
+        if let Some(lane) = (!valid).first_set() {
+            return index * LANES + lane;
+        }
+    }
+    input.len() - tail.len()
+        + tail
+            .iter()
+            .position(|&byte| !matches!(byte, b'A'..=b'Z' | b'0'..=b'9' | b'_'))
+            .unwrap_or(tail.len())
+}
+
+/// `user_defined_keyword` = `!` [upper] { [upper] |
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -329,18 +369,19 @@ pub fn user_defined_keyword(input: &str) -> ParseResult<'_, String> {
     Ok((rest, input[..input.len() - rest.len()].to_owned()))
 }
 
-/// `tag_name` = ( [upper] | [lower] ) { [upper] | [lower] | [digit] } .
+/// `tag_name` = ( [upper] | [lower] ) { [upper] | [lower] |
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn tag_name(input: &str) -> ParseResult<'_, String> {
-    (alt((upper, lower)), many0(alt((upper, lower, digit))))
-        .map(|(first, tail)| {
-            let head = &[first];
-            head.iter().chain(tail.iter()).collect()
-        })
-        .parse(input)
+    let (rest, _) = alt((upper, lower)).parse(input)?;
+    let (rest, _) = nom::bytes::complete::take_while(|c: char| {
+        c.is_ascii_alphanumeric() || c == '_'
+    })
+    .parse(rest)?;
+    Ok((rest, input[..input.len() - rest.len()].to_owned()))
 }
 
 /// `signature_content` = BASE64 .
@@ -349,17 +390,107 @@ pub fn tag_name(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn signature_content(input: &str) -> ParseResult<'_, String> {
-    let base_char = satisfy(
-        |c| matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '+' | '/' | '='),
-    );
-    many1(base_char)
-        .map(|chars| chars.iter().collect())
-        .parse(input)
+    nom::bytes::complete::take_while1(|c: char| {
+        c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=')
+    })
+    .map(str::to_owned)
+    .parse(input)
 }
 
 #[cfg(test)]
 mod tests {
     use nom::Finish;
+
+    #[test]
+    fn string_span_parser_handles_quotes_unicode_and_remaining_input() {
+        for (input, value, residual) in [
+            ("'';", "", ";"),
+            ("'''';", "'", ";"),
+            ("'abc''é😀''def'next", "abc'é😀'def", "next"),
+            ("'é\n\\X2\\0000\\X0\\'tail", "é\n\\X2\\0000\\X0\\", "tail"),
+        ] {
+            assert_eq!(super::string(input), Ok((residual, value.to_owned())));
+        }
+        for input in ["", "no quote", "'", "'abc", "'abc''", "'''"] {
+            assert!(super::string(input).is_err(), "{input:?}");
+        }
+    }
+
+    #[test]
+    fn borrowed_delimiter_scans_preserve_unicode_and_residuals() {
+        assert_eq!(
+            super::anchor_name("<é😀>suffix"),
+            Ok(("suffix", "é😀".to_owned()))
+        );
+        assert_eq!(
+            super::anchor_name("<>suffix"),
+            Ok(("suffix", String::new()))
+        );
+        assert!(super::anchor_name("<é").is_err());
+        assert!(super::resource("<é").is_err());
+        assert_eq!(
+            super::tag_name("_Ab9-foo"),
+            Ok(("-foo", "_Ab9".to_owned()))
+        );
+        assert!(super::tag_name("9abc").is_err());
+        assert_eq!(
+            super::signature_content("aAZ9+/=;"),
+            Ok((";", "aAZ9+/=".to_owned()))
+        );
+        assert!(super::signature_content(";").is_err());
+    }
+
+    #[test]
+    fn keyword_scan_matches_scalar_for_every_byte_and_lane() {
+        // Exercise unaligned slice starts, multiple complete vectors and
+        // every possible tail length; the oracle is scalar byte matching.
+        for offset in 0..16 {
+            let mut storage = [b'A'; 64];
+            let input = &mut storage[offset..offset + 49];
+            for length in 0..=input.len() {
+                assert_eq!(super::keyword_tail_len(&input[..length]), length);
+                if let Some((last, _)) = input[..length].split_last_mut() {
+                    *last = b'!';
+                    assert_eq!(
+                        super::keyword_tail_len(&input[..length]),
+                        length - 1
+                    );
+                    input[length - 1] = b'A';
+                }
+            }
+            for position in 0..input.len() {
+                for byte in u8::MIN..=u8::MAX {
+                    input[position] = byte;
+                    let expected = input
+                        .iter()
+                        .position(|byte| !matches!(byte, b'A'..=b'Z' | b'0'..=b'9' | b'_'))
+                        .unwrap_or(input.len());
+                    assert_eq!(super::keyword_tail_len(input), expected);
+                }
+                input[position] = b'A';
+            }
+        }
+    }
+
+    #[test]
+    fn keyword_scan_preserves_utf8_boundaries_and_initial_character_rule() {
+        for length in 1..65 {
+            let keyword = "A_9".repeat(length);
+            let input = format!("{keyword}é");
+            assert_eq!(
+                super::standard_keyword(&input),
+                Ok(("é", keyword.clone()))
+            );
+            let extension = format!("!{input}");
+            assert_eq!(
+                super::user_defined_keyword(&extension),
+                Ok(("é", format!("!{keyword}")))
+            );
+        }
+        for input in ["", "9A", "a", "é", "!9A"] {
+            assert!(super::keyword(input).is_err(), "{input:?}");
+        }
+    }
 
     #[test]
     fn real() {

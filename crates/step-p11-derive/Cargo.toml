@@ -10,7 +10,6 @@ name = "step-p11-derive"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-rust-version.workspace = true
 
 description   = "Procedural macro for running the step-p11 compiler"
 documentation = "https://docs.rs/step-p11-derive"

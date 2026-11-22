@@ -1,7 +1,6 @@
 //! Partial complex entities described in ISO-10303-11 Annex B
 use super::{ConstraintExpr, Namespace, Path, SemanticError};
 
-use itertools::Itertools;
 use std::cmp::Ordering;
 
 /// Partial complex entity data type, e.g. $A \And B \And C$ in ISO document
@@ -43,7 +42,7 @@ use std::cmp::Ordering;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartialComplexEntity {
     /// Sorted and non-duplicated indices
-    pub indices: Vec<usize>,
+    indices: Vec<usize>,
 }
 
 impl PartialOrd for PartialComplexEntity {
@@ -64,19 +63,24 @@ impl Ord for PartialComplexEntity {
 impl PartialComplexEntity {
     #[must_use = "the constructed partial entity must be used"]
     pub fn new(indices: &[usize]) -> Self {
-        Self {
-            indices: indices.iter().copied().dedup().collect(),
-        }
+        let mut indices = indices.to_vec();
+        indices.sort_unstable();
+        indices.dedup();
+        Self { indices }
     }
 
-    /// Restore Path from namespace index
-    #[must_use = "the resolved namespace paths are returned rather than stored"]
-    pub fn as_path(&self, ns: &Namespace) -> Vec<Path> {
+    /// Restore paths from namespace indices.
+    ///
+    /// # Errors
+    /// Returns an error if an index does not belong to the namespace.
+    pub fn as_path(&self, ns: &Namespace) -> Result<Vec<Path>, SemanticError> {
         self.indices
             .iter()
-            .map(|index| {
-                let (path, _ast) = &ns[*index];
-                path.clone()
+            .map(|&index| {
+                ns.ast
+                    .get(index)
+                    .map(|(path, _ast)| path.clone())
+                    .ok_or(SemanticError::InvalidNamespaceIndex { index })
             })
             .collect()
     }
@@ -94,9 +98,8 @@ impl std::ops::BitAnd for PartialComplexEntity {
     fn bitand(mut self, mut rhs: Self) -> Self {
         self.indices.append(&mut rhs.indices);
         self.indices.sort_unstable();
-        Self {
-            indices: self.indices.into_iter().dedup().collect(),
-        }
+        self.indices.dedup();
+        self
     }
 }
 
@@ -262,15 +265,19 @@ impl std::ops::BitAnd for PartialComplexEntity {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Instantiables {
     /// Sorted and non-duplicated list of partial complex entities
-    pub parts: Vec<PartialComplexEntity>,
+    parts: Vec<PartialComplexEntity>,
 }
 
 impl Instantiables {
     #[must_use = "the constructed instantiable set must be used"]
     pub fn new(pces: &[PartialComplexEntity]) -> Self {
-        Self {
-            parts: pces.to_vec(),
-        }
+        Self::from_parts(pces.to_vec())
+    }
+
+    fn from_parts(mut parts: Vec<PartialComplexEntity>) -> Self {
+        parts.sort_unstable();
+        parts.dedup();
+        Self { parts }
     }
 
     /// Create from single index
@@ -352,9 +359,14 @@ impl Instantiables {
         }
     }
 
-    /// Restore Path from namespace index
-    #[must_use = "the resolved paths are returned rather than stored"]
-    pub fn as_path(&self, ns: &Namespace) -> Vec<Vec<Path>> {
+    /// Restore paths from namespace indices.
+    ///
+    /// # Errors
+    /// Returns an error if an index does not belong to the namespace.
+    pub fn as_path(
+        &self,
+        ns: &Namespace,
+    ) -> Result<Vec<Vec<Path>>, SemanticError> {
         self.parts.iter().map(|pce| pce.as_path(ns)).collect()
     }
 }
@@ -364,9 +376,7 @@ impl<'a> FromIterator<&'a PartialComplexEntity> for Instantiables {
     where
         I: IntoIterator<Item = &'a PartialComplexEntity>,
     {
-        Self {
-            parts: iter.into_iter().cloned().sorted().dedup().collect(),
-        }
+        Self::from_parts(iter.into_iter().cloned().collect())
     }
 }
 
@@ -376,9 +386,7 @@ impl std::ops::Add for Instantiables {
 
     fn add(mut self, mut rhs: Self) -> Self {
         self.parts.append(&mut rhs.parts);
-        Self {
-            parts: self.parts.into_iter().sorted().dedup().collect(),
-        }
+        Self::from_parts(self.parts)
     }
 }
 
@@ -388,9 +396,7 @@ impl std::ops::Add<PartialComplexEntity> for Instantiables {
 
     fn add(mut self, rhs: PartialComplexEntity) -> Self {
         self.parts.push(rhs);
-        Self {
-            parts: self.parts.into_iter().sorted().dedup().collect(),
-        }
+        Self::from_parts(self.parts)
     }
 }
 
@@ -414,9 +420,7 @@ impl std::ops::BitAnd for Instantiables {
                 parts.push(p.clone() & q.clone());
             }
         }
-        Self {
-            parts: parts.into_iter().sorted().dedup().collect(),
-        }
+        Self::from_parts(parts)
     }
 }
 
@@ -425,15 +429,9 @@ impl std::ops::BitAnd<PartialComplexEntity> for Instantiables {
     type Output = Self;
 
     fn bitand(self, q: PartialComplexEntity) -> Self {
-        Self {
-            parts: self
-                .parts
-                .into_iter()
-                .map(|p| p & q.clone())
-                .sorted()
-                .dedup()
-                .collect(),
-        }
+        Self::from_parts(
+            self.parts.into_iter().map(|p| p & q.clone()).collect(),
+        )
     }
 }
 
@@ -516,7 +514,31 @@ impl std::ops::Div<PartialComplexEntity> for Instantiables {
 
 #[cfg(test)]
 mod tests {
-    use super::Instantiables;
+    use super::{
+        Instantiables, Namespace, PartialComplexEntity, SemanticError,
+    };
+
+    #[test]
+    fn constructors_canonicalize_arbitrary_set_order_and_duplicates() {
+        let left = PartialComplexEntity::new(&[3, 1, 3, 2, 1]);
+        assert_eq!(left.indices, [1, 2, 3]);
+        let right = PartialComplexEntity::new(&[2]);
+        let set =
+            Instantiables::new(&[left.clone(), right.clone(), left.clone()]);
+        assert_eq!(set.parts, [right, left]);
+    }
+
+    #[test]
+    fn resolving_an_out_of_range_index_returns_a_semantic_error() {
+        let namespace = Namespace {
+            names: Default::default(),
+            ast: Vec::new(),
+        };
+        assert!(matches!(
+            Instantiables::single(7).as_path(&namespace),
+            Err(SemanticError::InvalidNamespaceIndex { index: 7 })
+        ));
+    }
 
     #[test]
     fn andor_covers_every_nonempty_factor_combination() {
@@ -524,14 +546,14 @@ mod tests {
         let b = Instantiables::single(2);
         let c = Instantiables::single(3);
         let actual = Instantiables::andor(&[a.clone(), b.clone(), c.clone()]);
-        let expected = a.clone()
-            + b.clone()
-            + c.clone()
-            + (a.clone() & b.clone())
-            + (a.clone() & c.clone())
-            + (b.clone() & c.clone())
-            + (a & b & c);
-        assert_eq!(actual, expected);
+        let expected: &[&[usize]] =
+            &[&[1], &[2], &[3], &[1, 2], &[1, 3], &[2, 3], &[1, 2, 3]];
+        let actual_indices: Vec<_> = actual
+            .parts
+            .iter()
+            .map(|part| part.indices.as_slice())
+            .collect();
+        assert_eq!(actual_indices, expected);
         assert!(Instantiables::andor(&[]).parts.is_empty());
         assert!(Instantiables::and(Vec::new()).parts.is_empty());
     }
