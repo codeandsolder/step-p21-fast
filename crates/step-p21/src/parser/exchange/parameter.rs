@@ -42,7 +42,7 @@ pub fn parameter(input: &str) -> ParseResult<'_, Parameter> {
 pub fn typed_parameter(input: &str) -> ParseResult<'_, Parameter> {
     tuple_((keyword, char_('('), parameter, char_(')')))
         .map(|(name, _open, ty, _close)| Parameter::Typed {
-            keyword: name,
+            keyword: name.into_boxed_str(),
             parameter: Box::new(ty),
         })
         .parse(input)

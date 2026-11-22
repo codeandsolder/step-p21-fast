@@ -92,10 +92,10 @@ pub enum Name {
     Value(u64),
     /// Like `#CONST_ENTITY`, corresponds to
     /// [`parser::token::constant_entity_name`]
-    ConstantEntity(String),
+    ConstantEntity(Box<str>),
     /// Like `@CONST_VALUE`, corresponds to
     /// [`parser::token::constant_value_name`]
-    ConstantValue(String),
+    ConstantValue(Box<str>),
 }
 derive_ast_from_str!(Name, parser::token::rhs_occurrence_name);
 
@@ -436,7 +436,7 @@ derive_ast_from_str!(DataSection, parser::exchange::data_section);
 ///
 /// // A((2.0, 3.0))
 /// let a = Parameter::Typed {
-///     keyword: "A".to_string(),
+///     keyword: "A".into(),
 ///     parameter: Box::new(
 ///         vec![Parameter::real(2.0), Parameter::real(3.0)].into(),
 ///     ),
@@ -444,7 +444,7 @@ derive_ast_from_str!(DataSection, parser::exchange::data_section);
 ///
 /// // B((1.0, a))
 /// let b = Parameter::Typed {
-///     keyword: "B".to_string(),
+///     keyword: "B".into(),
 ///     parameter: Box::new(vec![Parameter::real(1.0), a].into()),
 /// };
 ///
@@ -548,7 +548,7 @@ pub enum Parameter {
     /// assert!(A::deserialize(&p).is_err());
     /// ```
     Typed {
-        keyword: String,
+        keyword: Box<str>,
         parameter: Box<Self>,
     },
 
@@ -771,6 +771,13 @@ impl<'a> std::iter::FromIterator<&'a Self> for Parameter {
         iter.into_iter().cloned().collect()
     }
 }
+
+// Fixed-size owned keywords and constant names keep the wider rarely
+// encountered alternatives from increasing the size of every parameter.
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(
+    std::mem::size_of::<Parameter>() <= 4 * std::mem::size_of::<usize>()
+);
 
 derive_ast_from_str!(Parameter, parser::exchange::parameter);
 

@@ -1,5 +1,9 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- Use fixed-size boxed strings for typed parameter keywords and constant
+  occurrence names, reducing the memory footprint of every AST parameter.
+  These public payloads are now `Box<str>`, not growable `String` values.
+
 - Flatten parameter classification and scan whitespace/comment delimiters
   directly. Share numeric and parenthesized-list parsing between DATA
   parameters and ANCHOR items; fix decimal anchors and support resource

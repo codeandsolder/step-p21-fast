@@ -55,7 +55,7 @@ impl<'de> de::VariantAccess<'de> for &Name {
                 seed.deserialize(id.into_deserializer())
             }
             Name::ConstantEntity(name) | Name::ConstantValue(name) => {
-                seed.deserialize(name.as_str().into_deserializer())
+                seed.deserialize(name.as_ref().into_deserializer())
             }
         }
     }
