@@ -1,5 +1,5 @@
 //! Reproducible release-mode parser microbenchmarks.
-//! Run with cargo run --release -p step-p21 --example parser_perf.
+//! Run with `cargo run --release -p step-p21 --example parser_perf`.
 
 use std::{hint::black_box, time::Instant};
 
