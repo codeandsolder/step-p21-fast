@@ -148,6 +148,17 @@ fn append_many<'a, O>(
     .parse(input)
 }
 
+/// Skip the ASCII whitespace recognized by STEP's existing grammar.
+pub(super) fn skip_spaces(input: &str) -> &str {
+    let skipped = input
+        .as_bytes()
+        .iter()
+        .position(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+        .unwrap_or(input.len());
+    // Every skipped byte is ASCII, so this is a UTF-8 boundary.
+    &input[skipped..]
+}
+
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -158,8 +169,7 @@ pub fn ignorable(mut input: &str) -> ParseResult<'_, ()> {
     // Comments are unambiguous at the byte level, so only invoke their parser
     // after the slash-star opener is present.
     loop {
-        let (after_spaces, _) = multispace0(input)?;
-        input = after_spaces;
+        input = skip_spaces(input);
         if !input.starts_with("/*") {
             return Ok((input, ()));
         }
@@ -429,6 +439,29 @@ mod tests {
 
         // does not match to head space
         assert!(many1_digit(" 1 /* comment */ 2").finish().is_err());
+    }
+
+    #[test]
+    fn ascii_space_scan_matches_nom_and_preserves_utf8_boundaries() {
+        for byte in u8::MIN..=u8::MAX {
+            for prefix in ["", " ", "\t\r\n", " \t\r\n  \t"] {
+                let input = format!("{prefix}{}suffix", char::from(byte));
+                let (expected, _) = nom::character::complete::multispace0::<
+                    _,
+                    VerboseError<_>,
+                >(input.as_str())
+                .unwrap();
+                assert_eq!(super::skip_spaces(&input), expected);
+            }
+        }
+        for input in ["", " \t\r\n", "\u{3000}", "\u{2003}", "\u{feff}"] {
+            let (expected, _) = nom::character::complete::multispace0::<
+                _,
+                VerboseError<_>,
+            >(input)
+            .unwrap();
+            assert_eq!(super::skip_spaces(input), expected);
+        }
     }
 
     #[test]

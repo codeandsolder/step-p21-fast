@@ -1,7 +1,7 @@
 use crate::{
     ast::Parameter,
     parser::{
-        combinator::{ParseResult, char_, comma_separated, opt_, tuple_},
+        combinator::{ParseResult, char_, comma_separated, ignorable, tuple_},
         token::{enumeration, keyword, number, rhs_occurrence_name, string},
     },
 };
@@ -17,11 +17,23 @@ use nom::{
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn list(input: &str) -> ParseResult<'_, Parameter> {
-    tuple_((char_('('), opt_(comma_separated(parameter)), char_(')')))
-        .map(|(_open, params, _close)| {
-            Parameter::List(params.unwrap_or_default())
-        })
-        .parse(input)
+    parenthesized_parameters(input)
+        .map(|(rest, values)| (rest, Parameter::List(values)))
+}
+
+/// Shared parenthesized parameter list, including the empty aggregate.
+pub(super) fn parenthesized_parameters(
+    input: &str,
+) -> ParseResult<'_, Vec<Parameter>> {
+    let (rest, _) = char_('(').parse(input)?;
+    let (rest, ()) = ignorable(rest)?;
+    if let Some(rest) = rest.strip_prefix(')') {
+        return Ok((rest, Vec::new()));
+    }
+    let (rest, values) = parameter_list(rest)?;
+    let (rest, ()) = ignorable(rest)?;
+    let (rest, _) = char_(')').parse(rest)?;
+    Ok((rest, values))
 }
 
 /// parameter = [`typed_parameter`] | [`untyped_parameter`] |
@@ -52,7 +64,8 @@ pub fn typed_parameter(input: &str) -> ParseResult<'_, Parameter> {
         .parse(input)
 }
 
-/// `untyped_parameter` = `$` | [integer] | [real] | [string] |
+/// `untyped_parameter` = `$` | [`integer`](crate::parser::token::integer) |
+/// [`real`](crate::parser::token::real) | [string] |
 /// [`rhs_occurrence_name`] | [enumeration] | binary | [list] .
 ///
 /// # Errors
@@ -123,6 +136,38 @@ mod tests {
             super::omitted_parameter,
         ))
         .parse(input)
+    }
+
+    #[test]
+    fn parenthesized_lists_accept_empty_comments_and_reject_invalid_tails() {
+        for input in ["()", "( \t\r\n)", "(/*empty*/ )"] {
+            assert_eq!(
+                super::list(input),
+                Ok(("", Parameter::List(Vec::new())))
+            );
+        }
+        assert_eq!(
+            super::list("(/*before*/ 1, #2, () /*after*/)tail"),
+            Ok((
+                "tail",
+                Parameter::List(vec![
+                    Parameter::Integer(1),
+                    Parameter::Ref(crate::ast::Name::Entity(2)),
+                    Parameter::List(Vec::new()),
+                ])
+            ))
+        );
+        assert_eq!(
+            super::list("( )missing"),
+            Ok(("missing", Parameter::List(Vec::new())))
+        );
+        for input in ["(,)", "(1,)", "(/*invalid", "(1 2)", "("] {
+            assert!(super::list(input).is_err(), "{input:?}");
+        }
+        assert!(matches!(
+            super::list("(#18446744073709551616)"),
+            Err(nom::Err::Failure(_))
+        ));
     }
 
     #[test]

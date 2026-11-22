@@ -4,13 +4,13 @@ use crate::{
     ast::{Name, Parameter, Uri},
     parser::{
         basic::{lower, upper},
-        combinator::ParseResult,
+        combinator::{ParseResult, skip_spaces},
     },
 };
 use nom::{
     Parser,
     branch::alt,
-    character::complete::{char, digit0, digit1, multispace0},
+    character::complete::char,
     combinator::opt,
     error::{ErrorKind, ParseError},
 };
@@ -47,9 +47,31 @@ fn number_prefix(input: &str) -> ParseResult<'_, (Option<char>, &str)> {
         Some(b'-') => (Some('-'), &input[1..]),
         _ => (None, input),
     };
-    let (rest, _) = multispace0(rest)?;
-    let (rest, digits) = digit1(rest)?;
+    let (rest, digits) = required_digits(skip_spaces(rest))?;
     Ok((rest, (sign, digits)))
+}
+
+/// Split an ASCII digit prefix without decoding UTF-8 characters.
+fn digit_span(input: &str) -> (&str, &str) {
+    let count = input
+        .as_bytes()
+        .iter()
+        .position(|byte| !byte.is_ascii_digit())
+        .unwrap_or(input.len());
+    let (digits, rest) = input.split_at(count);
+    (rest, digits)
+}
+
+fn required_digits(input: &str) -> ParseResult<'_, &str> {
+    let (rest, digits) = digit_span(input);
+    if digits.is_empty() {
+        Err(nom::Err::Error(ParseError::from_error_kind(
+            input,
+            ErrorKind::Digit,
+        )))
+    } else {
+        Ok((rest, digits))
+    }
 }
 
 fn integer_value<'a>(
@@ -86,8 +108,7 @@ fn parse_signed_integer(sign: Option<char>, digits: &str) -> Result<i64, ()> {
 /// [`digit`](super::basic::digit) } .
 fn exponent(input: &str) -> ParseResult<'_, i64> {
     let (rest, _) = char('E')(input)?;
-    let (rest, _) = multispace0(rest)?;
-    let (rest, (sign, digits)) = number_prefix(rest)?;
+    let (rest, (sign, digits)) = number_prefix(skip_spaces(rest))?;
     integer_value(input, rest, sign, digits)
 }
 
@@ -123,7 +144,7 @@ fn real_suffix<'a>(
     integral: &str,
 ) -> ParseResult<'a, f64> {
     let (rest, _) = char('.')(rest)?;
-    let (rest, fractional) = digit0(rest)?;
+    let (rest, fractional) = digit_span(rest);
     // Retain the optional exponent's backtracking semantics for malformed
     // exponents, without constructing a recoverable error when E is absent.
     let (rest, exp) = if rest.starts_with('E') {
@@ -242,19 +263,11 @@ fn u64_overflow(
 ///
 /// leading zeros are ignored, and convert into `u64` type.
 ///
-/// Error
-/// -------
-/// - FIXME: If the input cannot be represented by `u64`, i.e. larger than
-///   [`u64::MAX`]
-///
 /// # Errors
-/// Returns a parse error when the input does not satisfy the corresponding STEP
-/// grammar production.
+/// Returns a parse error for invalid syntax or an identifier exceeding
+/// [`u64::MAX`].
 pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
-    let (input, name) = (char('#'), digit1)
-        .map(|(_sharp, name): (_, &str)| name.parse())
-        .parse(input)?;
-    name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
+    instance_name(input, '#')
 }
 
 /// `value_instance_name` = `@` ( [`digit`](super::basic::digit) ) {
@@ -262,19 +275,20 @@ pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
 ///
 /// Leading zeros are ignored like as [`entity_instance_name`].
 ///
-/// Error
-/// -------
-/// - FIXME: If the input cannot be represented by `u64`, i.e. larger than
-///   [`u64::MAX`]
-///
 /// # Errors
-/// Returns a parse error when the input does not satisfy the corresponding STEP
-/// grammar production.
+/// Returns a parse error for invalid syntax or an identifier exceeding
+/// [`u64::MAX`].
 pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
-    let (input, name) = (char('@'), digit1)
-        .map(|(_sharp, name): (_, &str)| name.parse())
-        .parse(input)?;
-    name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
+    instance_name(input, '@')
+}
+
+fn instance_name(input: &str, prefix: char) -> ParseResult<'_, u64> {
+    let (rest, _) = char(prefix)(input)?;
+    let (rest, digits) = required_digits(rest)?;
+    digits
+        .parse()
+        .map(|value| (rest, value))
+        .map_err(|_| u64_overflow(rest))
 }
 
 /// `constant_entity_name` = `#` ( [upper] ) { [upper] |
@@ -308,11 +322,11 @@ pub fn constant_value_name(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn lhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
-    alt((
-        entity_instance_name.map(Name::Entity),
-        value_instance_name.map(Name::Value),
-    ))
-    .parse(input)
+    if input.starts_with('@') {
+        value_instance_name.map(Name::Value).parse(input)
+    } else {
+        entity_instance_name.map(Name::Entity).parse(input)
+    }
 }
 
 /// `rhs_occurrence_name` = ( [`entity_instance_name`] | [`value_instance_name`]
@@ -322,13 +336,16 @@ pub fn lhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn rhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
-    alt((
-        entity_instance_name.map(Name::Entity),
-        value_instance_name.map(Name::Value),
-        constant_entity_name.map(Name::ConstantEntity),
-        constant_value_name.map(Name::ConstantValue),
-    ))
-    .parse(input)
+    match input.as_bytes() {
+        [b'#', b'0'..=b'9', ..] => {
+            entity_instance_name.map(Name::Entity).parse(input)
+        }
+        [b'@', b'0'..=b'9', ..] => {
+            value_instance_name.map(Name::Value).parse(input)
+        }
+        [b'@', ..] => constant_value_name.map(Name::ConstantValue).parse(input),
+        _ => constant_entity_name.map(Name::ConstantEntity).parse(input),
+    }
 }
 
 /// `anchor_name` = `<` `URI_FRAGMENT_IDENTIFIER` `>` .
@@ -538,6 +555,28 @@ mod tests {
         for input in ["", "9A", "a", "é", "!9A"] {
             assert!(super::keyword(input).is_err(), "{input:?}");
         }
+    }
+
+    #[test]
+    fn digit_span_matches_nom_for_all_byte_values_and_prefix_lengths() {
+        use nom::character::complete::{digit0, digit1};
+        use nom_language::error::VerboseError;
+
+        for byte in u8::MIN..=u8::MAX {
+            for length in 0..=40 {
+                let input =
+                    format!("{}{}0", "8".repeat(length), char::from(byte));
+                let expected =
+                    digit0::<_, VerboseError<_>>(input.as_str()).unwrap();
+                assert_eq!(super::digit_span(&input), expected);
+                assert_eq!(
+                    super::required_digits(&input),
+                    digit1::<_, VerboseError<_>>(input.as_str())
+                );
+            }
+        }
+        assert_eq!(super::digit_span(""), ("", ""));
+        assert_eq!(super::digit_span("123٤"), ("٤", "123"));
     }
 
     #[test]
