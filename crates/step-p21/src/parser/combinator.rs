@@ -181,10 +181,9 @@ fn repeat_after<'a, O>(
 /// Locate the next element without allocating a speculative delimiter error.
 fn following_start(input: &str, delimiter: Option<char>) -> Option<&str> {
     let start = ignorable(input);
-    match delimiter {
-        Some(delimiter) => start.strip_prefix(delimiter).map(ignorable),
-        None => Some(start),
-    }
+    delimiter.map_or(Some(start), |delimiter| {
+        start.strip_prefix(delimiter).map(ignorable)
+    })
 }
 
 /// Skip the ASCII whitespace recognized by STEP's existing grammar.
