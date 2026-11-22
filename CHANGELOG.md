@@ -1,5 +1,8 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- Build, lint, and test on the shared dated fleet nightly; remove the
+  unsupported stable MSRV promise and the floating formatter installation.
+
 - Enforce file-wide instance ID uniqueness in generated named and positional
   `TableInit` implementations, including appended DATA sections, rather
   than checking only within each EXPRESS entity type's map.

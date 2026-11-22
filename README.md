@@ -48,6 +48,11 @@ downstream consumers update their imports when upgrading the parser.
 Fixes that are not fork-specific are worth offering upstream. Nothing here is
 intended as a hostile fork.
 
+### Rust toolchain
+
+This fork uses the fleet-pinned nightly in `rust-toolchain.toml`. Build
+consumers with the same compiler; no stable MSRV is promised.
+
 ### Changes Since the Fork
 
 See [`CHANGELOG.md`](CHANGELOG.md); Apache-2.0 requires stating modifications, so
