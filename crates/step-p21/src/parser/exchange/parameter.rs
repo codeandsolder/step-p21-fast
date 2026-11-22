@@ -43,11 +43,7 @@ pub(super) fn parenthesized_parameters(
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn parameter(input: &str) -> ParseResult<'_, Parameter> {
-    match input.as_bytes().first() {
-        Some(b'A'..=b'Z' | b'_' | b'!') => typed_parameter(input),
-        Some(b'*') => omitted_parameter(input),
-        _ => untyped_parameter(input),
-    }
+    parameter_dispatch::<true>(input)
 }
 
 /// `typed_parameter` = [keyword] `(` [parameter] `)` .
@@ -72,19 +68,29 @@ pub fn typed_parameter(input: &str) -> ParseResult<'_, Parameter> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn untyped_parameter(input: &str) -> ParseResult<'_, Parameter> {
-    // Each syntax class has a distinct leading byte. Whitespace is
-    // accepted here only by the numeric grammar, as before.
-    match input.as_bytes().first() {
-        Some(b'$') => value(Parameter::NotProvided, char_('$')).parse(input),
-        Some(b'0'..=b'9' | b'+' | b'-' | b' ' | b'\t' | b'\r' | b'\n') => {
+    parameter_dispatch::<false>(input)
+}
+
+/// Both grammar productions use the same token classification. Only the
+/// full parameter grammar admits typed or omitted values.
+fn parameter_dispatch<const FULL: bool>(
+    input: &str,
+) -> ParseResult<'_, Parameter> {
+    match input.as_bytes() {
+        [b'A'..=b'Z' | b'_' | b'!', ..] if FULL => typed_parameter(input),
+        [b'*', ..] if FULL => Ok((&input[1..], Parameter::Omitted)),
+        [b'$', ..] => Ok((&input[1..], Parameter::NotProvided)),
+        [b'0'..=b'9' | b'+' | b'-' | b' ' | b'\t' | b'\r' | b'\n', ..] => {
             number(input)
         }
-        Some(b'\'') => string.map(Parameter::String).parse(input),
-        Some(b'#' | b'@') => {
-            rhs_occurrence_name.map(Parameter::Ref).parse(input)
+        [b'\'', ..] => {
+            string(input).map(|(rest, value)| (rest, Parameter::String(value)))
         }
-        Some(b'.') => enumeration.map(Parameter::Enumeration).parse(input),
-        Some(b'(') => list(input),
+        [b'#' | b'@', ..] => rhs_occurrence_name(input)
+            .map(|(rest, value)| (rest, Parameter::Ref(value))),
+        [b'.', ..] => enumeration(input)
+            .map(|(rest, value)| (rest, Parameter::Enumeration(value))),
+        [b'(', ..] => list(input),
         // Binary literals are not yet supported.
         _ => Err(nom::Err::Error(ParseError::from_error_kind(
             input,
@@ -119,13 +125,23 @@ mod tests {
     // The former ordered grammar alternatives are an independent oracle
     // for choosing a syntax class, including recovery after partial input.
     fn reference_parameter(input: &str) -> super::ParseResult<'_, Parameter> {
+        use nom::{Parser, branch::alt};
+
+        alt((
+            super::typed_parameter,
+            reference_untyped,
+            super::omitted_parameter,
+        ))
+        .parse(input)
+    }
+
+    fn reference_untyped(input: &str) -> super::ParseResult<'_, Parameter> {
         use crate::parser::token::{
             enumeration, integer, real, rhs_occurrence_name, string,
         };
         use nom::{Parser, branch::alt, combinator::value};
 
         alt((
-            super::typed_parameter,
             value(Parameter::NotProvided, super::char_('$')),
             real.map(Parameter::Real),
             integer.map(Parameter::Integer),
@@ -133,7 +149,6 @@ mod tests {
             rhs_occurrence_name.map(Parameter::Ref),
             enumeration.map(Parameter::Enumeration),
             super::list,
-            super::omitted_parameter,
         ))
         .parse(input)
     }
@@ -235,28 +250,36 @@ mod tests {
         ] {
             for suffix in ["", ",", "/*next*/", "é", " ", "0"] {
                 let input = format!("{token}{suffix}");
-                let expected = reference_parameter(&input);
-                let actual = super::parameter(&input);
-                match (actual, expected) {
+                for (actual, expected) in [
+                    (super::parameter(&input), reference_parameter(&input)),
                     (
-                        Ok((rest, Parameter::Real(actual))),
-                        Ok((expected_rest, Parameter::Real(expected))),
-                    ) => {
-                        assert_eq!(rest, expected_rest, "{input:?}");
-                        assert_eq!(
-                            actual.to_bits(),
-                            expected.to_bits(),
-                            "{input:?}"
-                        );
-                    }
-                    (Ok(actual), Ok(expected)) => {
-                        assert_eq!(actual, expected, "{input:?}")
-                    }
-                    (Err(nom::Err::Error(_)), Err(nom::Err::Error(_)))
-                    | (Err(nom::Err::Failure(_)), Err(nom::Err::Failure(_))) => {
-                    }
-                    (actual, expected) => {
-                        assert_eq!(actual, expected, "{input:?}")
+                        super::untyped_parameter(&input),
+                        reference_untyped(&input),
+                    ),
+                ] {
+                    match (actual, expected) {
+                        (
+                            Ok((rest, Parameter::Real(actual))),
+                            Ok((expected_rest, Parameter::Real(expected))),
+                        ) => {
+                            assert_eq!(rest, expected_rest, "{input:?}");
+                            assert_eq!(
+                                actual.to_bits(),
+                                expected.to_bits(),
+                                "{input:?}"
+                            );
+                        }
+                        (Ok(actual), Ok(expected)) => {
+                            assert_eq!(actual, expected, "{input:?}")
+                        }
+                        (Err(nom::Err::Error(_)), Err(nom::Err::Error(_)))
+                        | (
+                            Err(nom::Err::Failure(_)),
+                            Err(nom::Err::Failure(_)),
+                        ) => {}
+                        (actual, expected) => {
+                            assert_eq!(actual, expected, "{input:?}")
+                        }
                     }
                 }
             }
