@@ -16,7 +16,7 @@ use nom::{
     bytes::complete::{tag, take_until},
     character::complete::{char, multispace0, multispace1},
     combinator::{opt, value},
-    multi::{many0, many1},
+    multi::{fold_many0, many1},
 };
 use nom_language::error::VerboseError;
 
@@ -109,9 +109,11 @@ pub fn many0_<'a, O>(
             (input, Some(first)) => (input, first),
             (input, None) => return Ok((input, Vec::new())),
         };
-        let (input, tail) =
-            many0((ignorable, f.clone()).map(|(_sep, v)| v)).parse(input)?;
-        Ok((input, std::iter::once(first).chain(tail).collect()))
+        append_many(
+            input,
+            vec![first],
+            (ignorable, f.clone()).map(|(_sep, value)| value),
+        )
     }
 }
 
@@ -119,14 +121,42 @@ pub fn many1_<'a, O>(
     f: impl ExchangeParser<'a, O>,
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
-        (f.clone(), many0((ignorable, f.clone())))
-            .map(|(first, tail)| {
-                let first = vec![first];
-                let tail = tail.into_iter().map(|(_sep, val)| val);
-                first.into_iter().chain(tail).collect()
-            })
-            .parse(input)
+        let (input, first) = f.clone().parse(input)?;
+        append_many(
+            input,
+            vec![first],
+            (ignorable, f.clone()).map(|(_sep, value)| value),
+        )
     }
+}
+
+/// Extend a single allocation, leaving a failed speculative tail unconsumed.
+/// Like nom's many0, reject non-consuming repetition and propagate failures.
+fn append_many<'a, O>(
+    input: &'a str,
+    mut values: Vec<O>,
+    tail: impl Parser<&'a str, Output = O, Error = VerboseError<&'a str>>,
+) -> ParseResult<'a, Vec<O>> {
+    fold_many0(
+        tail,
+        || std::mem::take(&mut values),
+        |mut values, value| {
+            values.push(value);
+            values
+        },
+    )
+    .parse(input)
+}
+
+/// Skip the ASCII whitespace recognized by STEP's existing grammar.
+pub(super) fn skip_spaces(input: &str) -> &str {
+    let skipped = input
+        .as_bytes()
+        .iter()
+        .position(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+        .unwrap_or(input.len());
+    // Every skipped byte is ASCII, so this is a UTF-8 boundary.
+    &input[skipped..]
 }
 
 ///
@@ -139,8 +169,7 @@ pub fn ignorable(mut input: &str) -> ParseResult<'_, ()> {
     // Comments are unambiguous at the byte level, so only invoke their parser
     // after the slash-star opener is present.
     loop {
-        let (after_spaces, _) = multispace0(input)?;
-        input = after_spaces;
+        input = skip_spaces(input);
         if !input.starts_with("/*") {
             return Ok((input, ()));
         }
@@ -160,19 +189,13 @@ pub fn separated<'a, O>(
     f: impl ExchangeParser<'a, O>,
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
-        (
-            f.clone(),
-            many0(
-                (ignorable, char(c), ignorable, f.clone())
-                    .map(|(_sep1, _char, _sep2, value)| value),
-            ),
+        let (input, first) = f.clone().parse(input)?;
+        append_many(
+            input,
+            vec![first],
+            (ignorable, char(c), ignorable, f.clone())
+                .map(|(_sep1, _char, _sep2, value)| value),
         )
-            .map(|(first, mut tails)| {
-                let mut values = vec![first];
-                values.append(&mut tails);
-                values
-            })
-            .parse(input)
     }
 }
 
@@ -419,6 +442,29 @@ mod tests {
     }
 
     #[test]
+    fn ascii_space_scan_matches_nom_and_preserves_utf8_boundaries() {
+        for byte in u8::MIN..=u8::MAX {
+            for prefix in ["", " ", "\t\r\n", " \t\r\n  \t"] {
+                let input = format!("{prefix}{}suffix", char::from(byte));
+                let (expected, _) = nom::character::complete::multispace0::<
+                    _,
+                    VerboseError<_>,
+                >(input.as_str())
+                .unwrap();
+                assert_eq!(super::skip_spaces(&input), expected);
+            }
+        }
+        for input in ["", " \t\r\n", "\u{3000}", "\u{2003}", "\u{feff}"] {
+            let (expected, _) = nom::character::complete::multispace0::<
+                _,
+                VerboseError<_>,
+            >(input)
+            .unwrap();
+            assert_eq!(super::skip_spaces(input), expected);
+        }
+    }
+
+    #[test]
     fn ignorable() {
         let (res, _) = super::ignorable("").finish().unwrap();
         assert_eq!(res, "");
@@ -458,6 +504,28 @@ mod tests {
 
     fn comma_digit(input: &str) -> ParseResult<'_, Vec<char>> {
         comma_separated(digit).parse(input)
+    }
+
+    #[test]
+    fn repeated_parsers_leave_recoverable_tails_unconsumed_and_propagate_failure()
+     {
+        assert_eq!(
+            comma_digit("1, 2 /*tail*/ ,X"),
+            Ok((" /*tail*/ ,X", vec!['1', '2']))
+        );
+        assert_eq!(
+            comma_digit("1, /*unterminated"),
+            Ok((", /*unterminated", vec!['1']))
+        );
+        assert_eq!(many0_digit("1 /*tail*/ X"), Ok((" /*tail*/ X", vec!['1'])));
+        let mut parser =
+            super::many0_(crate::parser::token::entity_instance_name);
+        assert!(matches!(
+            parser.parse("#1 #18446744073709551616"),
+            Err(nom::Err::Failure(_))
+        ));
+        let mut empty = super::many0_(super::ignorable);
+        assert!(matches!(empty.parse("X"), Err(nom::Err::Error(_))));
     }
 
     #[test]
