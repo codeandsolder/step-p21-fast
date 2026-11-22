@@ -28,7 +28,8 @@ pub fn sign(input: &str) -> ParseResult<'_, char> {
     alt((char('+'), char('-'))).parse(input)
 }
 
-/// integer = \[ [sign] \] [digit] { [digit] } .
+/// integer = \[ [sign] \] [`digit`](super::basic::digit) {
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -54,7 +55,8 @@ fn parse_signed_integer(sign: Option<char>, digits: &str) -> Result<i64, ()> {
     }
 }
 
-/// `E` \[ [sign] \] [digit] { [digit] } .
+/// `E` \[ [sign] \] [`digit`](super::basic::digit) {
+/// [`digit`](super::basic::digit) } .
 fn exponent(input: &str) -> ParseResult<'_, i64> {
     map_res(
         (char('E'), multispace0, opt(sign), multispace0, digit1),
@@ -63,8 +65,10 @@ fn exponent(input: &str) -> ParseResult<'_, i64> {
     .parse(input)
 }
 
-/// real = \[ [sign] \] [digit] { [digit] } `.` { [digit] } \[ `E` \[ [sign] \]
-/// [digit] { [digit] } \] .
+/// real = \[ [sign] \] [`digit`](super::basic::digit) {
+/// [`digit`](super::basic::digit) } `.` { [`digit`](super::basic::digit) } \[
+/// `E` \[ [sign] \] [`digit`](super::basic::digit) {
+/// [`digit`](super::basic::digit) } \] .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -108,7 +112,7 @@ fn finite_real(rest: &str, number: f64) -> ParseResult<'_, f64> {
 /// EXPRESS string-token grammar:
 ///
 /// ```text
-/// string = "'" { [special] | [digit] | [space] | [lower] | [upper] |
+/// string = "'" { [special] | [`digit`](super::basic::digit) | [space] | [lower] | [upper] |
 ///   high_codepoint | [apostrophe] [apostrophe] |
 ///   [reverse_solidus] [reverse_solidus] | control_directive } "'" .
 /// ```
@@ -147,7 +151,7 @@ pub fn resource(input: &str) -> ParseResult<'_, Uri> {
     anchor_name.map(Uri).parse(input)
 }
 
-/// enumeration = `.` [upper] { [upper] | [digit] } `.` .
+/// enumeration = `.` [upper] { [upper] | [`digit`](super::basic::digit) } `.` .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -180,7 +184,8 @@ fn u64_overflow(
     numeric_error(input, "u64-overflow")
 }
 
-/// `entity_instance_name` = `#` ( [digit] ) { [digit] } .
+/// `entity_instance_name` = `#` ( [`digit`](super::basic::digit) ) {
+/// [`digit`](super::basic::digit) } .
 ///
 /// As discussed in ISO-10303-21 6.4.4.3 Entity instance names,
 ///
@@ -204,7 +209,8 @@ pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
     name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
 }
 
-/// `value_instance_name` = `@` ( [digit] ) { [digit] } .
+/// `value_instance_name` = `@` ( [`digit`](super::basic::digit) ) {
+/// [`digit`](super::basic::digit) } .
 ///
 /// Leading zeros are ignored like as [`entity_instance_name`].
 ///
@@ -223,7 +229,8 @@ pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
     name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
 }
 
-/// `constant_entity_name` = `#` ( [upper] ) { [upper] | [digit] } .
+/// `constant_entity_name` = `#` ( [upper] ) { [upper] |
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -234,7 +241,8 @@ pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
         .parse(input)
 }
 
-/// `constant_value_name` = `@` ( [upper] ) { [upper] | [digit] } .
+/// `constant_value_name` = `@` ( [upper] ) { [upper] |
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -305,7 +313,7 @@ pub fn keyword(input: &str) -> ParseResult<'_, String> {
     }
 }
 
-/// `standard_keyword` = [upper] { [upper] | [digit] } .
+/// `standard_keyword` = [upper] { [upper] | [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -347,7 +355,8 @@ fn keyword_tail_len(input: &[u8]) -> usize {
             .unwrap_or(tail.len())
 }
 
-/// `user_defined_keyword` = `!` [upper] { [upper] | [digit] } .
+/// `user_defined_keyword` = `!` [upper] { [upper] |
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
@@ -360,7 +369,8 @@ pub fn user_defined_keyword(input: &str) -> ParseResult<'_, String> {
     Ok((rest, input[..input.len() - rest.len()].to_owned()))
 }
 
-/// `tag_name` = ( [upper] | [lower] ) { [upper] | [lower] | [digit] } .
+/// `tag_name` = ( [upper] | [lower] ) { [upper] | [lower] |
+/// [`digit`](super::basic::digit) } .
 ///
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP

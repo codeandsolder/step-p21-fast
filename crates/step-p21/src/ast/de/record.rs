@@ -29,12 +29,11 @@ impl<'de> de::Deserializer<'de> for &Record {
     where
         V: de::Visitor<'de>,
     {
-        if name == self.name {
-            if let Parameter::List(ref parameters) = self.parameter {
-                return visitor.visit_map(RecordStructDeserializer::new(
-                    fields, parameters,
-                )?);
-            }
+        if name == self.name
+            && let Parameter::List(ref parameters) = self.parameter
+        {
+            return visitor
+                .visit_map(RecordStructDeserializer::new(fields, parameters)?);
         }
         Self::deserialize_any(self, visitor)
     }

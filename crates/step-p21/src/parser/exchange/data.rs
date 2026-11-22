@@ -17,15 +17,16 @@ use nom::{Parser, branch::alt};
 pub fn data_section(input: &str) -> ParseResult<'_, DataSection> {
     tuple_((
         tag_("DATA"),
-        opt_(tuple_((char_('('), parameter_list, char_(')')))),
+        opt_(
+            tuple_((char_('('), parameter_list, char_(')')))
+                .map(|(_open, params, _close)| params),
+        ),
         char_(';'),
         entity_instance_list,
         tag_("ENDSEC;"),
     ))
     .map(|(_start, meta, _semicolon, entities, _end)| DataSection {
-        meta: meta
-            .map(|(_open, params, _close)| params)
-            .unwrap_or_default(),
+        meta: meta.unwrap_or_default(),
         entities,
     })
     .parse(input)

@@ -41,7 +41,7 @@ use crate::{
 };
 use nom::{Finish, Parser, sequence::terminated};
 
-/// Parse HEADER section
+/// Parse a HEADER section and return the unconsumed input.
 ///
 /// Example
 /// --------
@@ -68,8 +68,7 @@ use nom::{Finish, Parser, sequence::terminated};
 /// ```
 ///
 /// # Errors
-/// Returns an error if the STEP input is malformed or cannot be completely
-/// parsed.
+/// Returns an error if the header section is malformed.
 pub fn parse_header(input: &str) -> Result<(&str, Vec<ast::Record>)> {
     match exchange::header_section(input).finish() {
         Ok((input, records)) => Ok((input, records)),
