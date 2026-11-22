@@ -1,7 +1,7 @@
 //! Decode a STEP record directly into a derived Rust entity.
 
 #[derive(Debug, PartialEq, step_p21::Deserialize)]
-struct Point {
+pub struct Point {
     x: i64,
 }
 

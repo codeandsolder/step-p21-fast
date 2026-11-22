@@ -134,7 +134,7 @@ pub use step_p21_derive::*;
 #[cfg(test)]
 mod derive_path_tests {
     #[derive(Debug, PartialEq, step_p21::Deserialize)]
-    struct Point {
+    pub struct Point {
         x: i64,
     }
 
