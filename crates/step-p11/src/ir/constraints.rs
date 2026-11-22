@@ -101,7 +101,7 @@ impl ConstraintExpr {
         ns: &Namespace,
     ) -> Result<Vec<Vec<Path>>, SemanticError> {
         let is = Instantiables::from_constraint_expr(ns, self)?;
-        Ok(is.as_path(ns))
+        is.as_path(ns)
     }
 }
 
