@@ -201,21 +201,26 @@ pub(super) fn skip_spaces(input: &str) -> &str {
 /// An unfinished comment remains for the following grammar production
 /// to report as invalid.
 #[must_use = "returns the remaining input after skipping separators"]
-pub fn ignorable(mut input: &str) -> &str {
-    loop {
-        match input.as_bytes() {
-            [b' ' | b'\t' | b'\r' | b'\n', ..] => {
-                input = &input[1..];
-            }
-            [b'/', b'*', ..] => {
-                let Some((rest, _)) = comment_body(&input[2..]) else {
-                    return input;
-                };
-                input = rest;
-            }
-            _ => return input,
-        }
+#[inline]
+pub fn ignorable(input: &str) -> &str {
+    let rest = skip_spaces(input);
+    if rest.starts_with("/*") {
+        skip_comments(rest)
+    } else {
+        rest
     }
+}
+
+/// Called only after a comment opener was observed.
+#[cold]
+fn skip_comments(mut input: &str) -> &str {
+    while let Some(body) = input.strip_prefix("/*") {
+        let Some((rest, _)) = comment_body(body) else {
+            return input;
+        };
+        input = skip_spaces(rest);
+    }
+    input
 }
 
 pub fn separated<'a, O>(
@@ -392,6 +397,22 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn whitespace_scan_preserves_every_ascii_boundary() {
+        for byte in 0..=127_u8 {
+            let input = format!(" \t\r\n{}tail", char::from(byte));
+            let (expected, _) = nom::character::complete::multispace0::<
+                _,
+                VerboseError<_>,
+            >(input.as_str())
+            .unwrap();
+            assert_eq!(super::ignorable(&input), expected, "{byte}");
+        }
+        let input =
+            format!("{}/*comment*/{}é", " \r\n\t".repeat(256), " ".repeat(256));
+        assert_eq!(super::ignorable(&input), "é");
     }
 
     #[test]
