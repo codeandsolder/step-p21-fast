@@ -25,6 +25,7 @@ step-p21-derive = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+clap = { workspace = true }
 derive-new = { workspace = true }
 anyhow = { workspace = true }
 step-p11-derive = { workspace = true }

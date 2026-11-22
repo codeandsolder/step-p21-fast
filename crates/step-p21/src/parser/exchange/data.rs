@@ -60,7 +60,7 @@ pub fn entity_instance(input: &str) -> ParseResult<'_, EntityInstance> {
 fn entity_instance_prefix(input: &str) -> ParseResult<'_, u64> {
     let (rest, (id, _eq)) =
         tuple_((entity_instance_name, char_('='))).parse(input)?;
-    let (rest, ()) = ignorable(rest)?;
+    let rest = ignorable(rest);
     Ok((rest, id))
 }
 

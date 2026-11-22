@@ -133,6 +133,10 @@ In addition to original Keep-a-Changelog, we use following rules:
 
 ## Unreleased
 
+- Benchmark real STEP files and compare complete AST fingerprints; simplify
+  sequence and repetition parsing, delimiter scans and checked numeric names.
+  The separator scanner now directly returns the unconsumed input.
+
 ### Fixed
 
 - Fixes to support parsing of ISO13399 database plib. https://github.com/ricosjp/ruststep/pull/251

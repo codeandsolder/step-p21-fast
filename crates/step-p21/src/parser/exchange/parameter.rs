@@ -26,12 +26,12 @@ pub(super) fn parenthesized_parameters(
     input: &str,
 ) -> ParseResult<'_, Vec<Parameter>> {
     let (rest, _) = char_('(').parse(input)?;
-    let (rest, ()) = ignorable(rest)?;
+    let rest = ignorable(rest);
     if let Some(rest) = rest.strip_prefix(')') {
         return Ok((rest, Vec::new()));
     }
     let (rest, values) = parameter_list(rest)?;
-    let (rest, ()) = ignorable(rest)?;
+    let rest = ignorable(rest);
     let (rest, _) = char_(')').parse(rest)?;
     Ok((rest, values))
 }

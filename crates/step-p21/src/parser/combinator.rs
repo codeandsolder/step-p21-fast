@@ -12,11 +12,9 @@
 
 use nom::{
     IResult, Parser,
-    branch::alt,
-    bytes::complete::{tag, take_until},
-    character::complete::{char, multispace0, multispace1},
-    combinator::{opt, value},
-    multi::{fold_many0, many1},
+    bytes::complete::tag,
+    combinator::opt,
+    error::{ErrorKind, ParseError},
 };
 use nom_language::error::VerboseError;
 
@@ -36,10 +34,15 @@ impl<'a, X, T> ExchangeParser<'a, X> for T where
 
 #[must_use = "the returned parser must be invoked to match the character"]
 pub fn char_<'a>(c: char) -> impl ExchangeParser<'a, char> {
-    move |input| {
-        let (input, c) = nom::character::complete::char(c).parse(input)?;
-        Ok((input, c))
-    }
+    move |input| match_char(input, c)
+}
+
+/// Match a fixed character without decoding a distinct leading character.
+pub(super) fn match_char(input: &str, expected: char) -> ParseResult<'_, char> {
+    input
+        .strip_prefix(expected)
+        .map(|rest| (rest, expected))
+        .ok_or_else(|| nom::Err::Error(ParseError::from_char(input, expected)))
 }
 
 #[must_use = "the returned parser must be invoked to match the tag"]
@@ -79,9 +82,18 @@ pub fn comment(input: &str) -> ParseResult<'_, String> {
 /// discard comments while separating tokens, including large STEP fixtures.
 fn comment_slice(input: &str) -> ParseResult<'_, &str> {
     let (remaining, _) = tag("/*")(input)?;
-    let (remaining, text) = take_until("*/").parse(remaining)?;
-    let (remaining, _) = tag("*/")(remaining)?;
-    Ok((remaining, text))
+    comment_body(remaining).ok_or_else(|| {
+        nom::Err::Error(ParseError::from_error_kind(
+            remaining,
+            ErrorKind::TakeUntil,
+        ))
+    })
+}
+
+/// Split the bytes after a comment opener at its first closing delimiter.
+fn comment_body(content: &str) -> Option<(&str, &str)> {
+    let end = content.find("*/")?;
+    Some((&content[end + 2..], &content[..end]))
 }
 
 /// Comments with front/back spaces, or multi-space at least 1 char
@@ -97,8 +109,15 @@ fn comment_slice(input: &str) -> ParseResult<'_, &str> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn separator(input: &str) -> ParseResult<'_, ()> {
-    let comment = many1((multispace0, comment_slice, multispace0)).map(|_| ());
-    alt((comment, value((), multispace1))).parse(input)
+    let rest = ignorable(input);
+    if rest.len() == input.len() {
+        Err(nom::Err::Error(ParseError::from_error_kind(
+            input,
+            ErrorKind::MultiSpace,
+        )))
+    } else {
+        Ok((rest, ()))
+    }
 }
 
 pub fn many0_<'a, O>(
@@ -109,11 +128,7 @@ pub fn many0_<'a, O>(
             (input, Some(first)) => (input, first),
             (input, None) => return Ok((input, Vec::new())),
         };
-        append_many(
-            input,
-            vec![first],
-            (ignorable, f.clone()).map(|(_sep, value)| value),
-        )
+        repeat_after(input, first, f.clone(), None)
     }
 }
 
@@ -122,30 +137,53 @@ pub fn many1_<'a, O>(
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
         let (input, first) = f.clone().parse(input)?;
-        append_many(
-            input,
-            vec![first],
-            (ignorable, f.clone()).map(|(_sep, value)| value),
-        )
+        repeat_after(input, first, f.clone(), None)
     }
 }
 
-/// Extend a single allocation, leaving a failed speculative tail unconsumed.
-/// Like nom's many0, reject non-consuming repetition and propagate failures.
-fn append_many<'a, O>(
-    input: &'a str,
-    mut values: Vec<O>,
-    tail: impl Parser<&'a str, Output = O, Error = VerboseError<&'a str>>,
+/// Collect one or more elements separated by optional STEP separators.
+/// A recoverable tail error leaves the entire speculative tail unconsumed.
+fn repeat_after<'a, O>(
+    mut input: &'a str,
+    first: O,
+    mut element: impl ExchangeParser<'a, O>,
+    delimiter: Option<char>,
 ) -> ParseResult<'a, Vec<O>> {
-    fold_many0(
-        tail,
-        || std::mem::take(&mut values),
-        |mut values, value| {
-            values.push(value);
-            values
-        },
-    )
-    .parse(input)
+    // Singleton separated lists need only one slot. Larger lists use the
+    // normal Vec growth policy to avoid an immediate reallocation.
+    let Some(mut start) = following_start(input, delimiter) else {
+        return Ok((input, vec![first]));
+    };
+    let mut values = Vec::new();
+    values.extend([first]);
+    loop {
+        match element.parse(start) {
+            Ok((rest, value)) => {
+                if rest.len() == input.len() {
+                    return Err(nom::Err::Error(ParseError::from_error_kind(
+                        input,
+                        ErrorKind::Many0,
+                    )));
+                }
+                values.push(value);
+                input = rest;
+            }
+            Err(nom::Err::Error(_)) => return Ok((input, values)),
+            Err(error) => return Err(error),
+        }
+        let Some(next) = following_start(input, delimiter) else {
+            return Ok((input, values));
+        };
+        start = next;
+    }
+}
+
+/// Locate the next element without allocating a speculative delimiter error.
+fn following_start(input: &str, delimiter: Option<char>) -> Option<&str> {
+    let start = ignorable(input);
+    delimiter.map_or(Some(start), |delimiter| {
+        start.strip_prefix(delimiter).map(ignorable)
+    })
 }
 
 /// Skip the ASCII whitespace recognized by STEP's existing grammar.
@@ -159,28 +197,20 @@ pub(super) fn skip_spaces(input: &str) -> &str {
     &input[skipped..]
 }
 
-///
-/// # Errors
-/// Returns a parse error when the input does not satisfy the corresponding STEP
-/// grammar production.
-pub fn ignorable(mut input: &str) -> ParseResult<'_, ()> {
-    // Speculatively parsing a comment at every token boundary allocates a
-    // VerboseError even when the input contains only ordinary whitespace.
-    // Comments are unambiguous at the byte level, so only invoke their parser
-    // after the slash-star opener is present.
+/// Skip zero or more whitespace characters and complete comments.
+/// An unfinished comment remains for the following grammar production
+/// to report as invalid.
+#[must_use = "returns the remaining input after skipping separators"]
+pub fn ignorable(mut input: &str) -> &str {
     loop {
         input = skip_spaces(input);
-        if !input.starts_with("/*") {
-            return Ok((input, ()));
-        }
-        match comment_slice(input) {
-            Ok((after_comment, _)) => input = after_comment,
-            // Preserve the old backtracking behavior for an incomplete
-            // comment opener: ignore the preceding whitespace but let the
-            // following token parser decide how to report the invalid input.
-            Err(nom::Err::Error(_)) => return Ok((input, ())),
-            Err(error) => return Err(error),
-        }
+        let Some(content) = input.strip_prefix("/*") else {
+            return input;
+        };
+        let Some((rest, _)) = comment_body(content) else {
+            return input;
+        };
+        input = rest;
     }
 }
 
@@ -190,12 +220,7 @@ pub fn separated<'a, O>(
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
         let (input, first) = f.clone().parse(input)?;
-        append_many(
-            input,
-            vec![first],
-            (ignorable, char(c), ignorable, f.clone())
-                .map(|(_sep1, _char, _sep2, value)| value),
-        )
+        repeat_after(input, first, f.clone(), Some(c))
     }
 }
 
@@ -221,23 +246,14 @@ pub trait Tuple<'a, O>: Clone {
     fn parse(&mut self, input: &'a str) -> ParseResult<'a, O>;
 }
 
-/// Build nested native nom tuples, separated by ignorable input.
-macro_rules! tuple_gen {
-    ($head:ident, $($tail:ident),*) => {
-        ($head.clone(), ignorable, tuple_gen!($($tail),*))
-    };
-    ($head:ident) => {
-        $head.clone()
-    };
-}
-
-/// Expand `match_gen!(o1, o2, o3)` to `(o1, _, (o2, _, o3))`
-macro_rules! match_gen {
-    ($head:ident, $($tail:ident),*) => {
-        ($head, _, match_gen!($($tail),*))
-    };
-    ($head:ident) => {
-        $head
+/// Parse a sequence of grammar productions, skipping separators between them.
+macro_rules! parse_tuple {
+    ($input:ident; $first:ident => $first_out:ident $(, $parser:ident => $output:ident)*) => {
+        let ($input, $first_out) = $first.clone().parse($input)?;
+        $(
+            let $input = ignorable($input);
+            let ($input, $output) = $parser.clone().parse($input)?;
+        )*
     };
 }
 
@@ -249,9 +265,8 @@ macro_rules! impl_tuple {
         {
             fn parse(&mut self, input: &'a str) -> ParseResult<'a, ($($O),*)> {
                 let ($($f),*) = self;
-                tuple_gen!($($f),*)
-                    .map(|match_gen!($($o),*)| ($($o),*))
-                    .parse(input)
+                parse_tuple!(input; $($f => $o),*);
+                Ok((input, ($($o),*)))
             }
         }
     };
@@ -311,6 +326,81 @@ mod tests {
     use super::*;
     use crate::parser::basic::digit;
     use nom::Finish;
+
+    #[test]
+    fn separator_scanner_matches_original_combinators() {
+        use nom::{
+            branch::alt,
+            bytes::complete::{tag, take_until},
+            character::complete::{multispace0, multispace1},
+            combinator::value,
+            multi::many1,
+        };
+
+        fn reference_comment(input: &str) -> ParseResult<'_, &str> {
+            let (rest, _) = tag("/*")(input)?;
+            let (rest, text) = take_until("*/").parse(rest)?;
+            let (rest, _) = tag("*/")(rest)?;
+            Ok((rest, text))
+        }
+
+        for prefix in
+            ["", " ", "\t\n\r", "/*é*/", "/*a*//*b*/", "  /* 🦀 */ \r\n"]
+        {
+            for suffix in [
+                "",
+                "A",
+                "/*unterminated",
+                "/* */ /*next*/é",
+                "/",
+                " //",
+                "\u{3000}",
+            ] {
+                let input = format!("{prefix}{suffix}");
+                let comments =
+                    many1((multispace0, reference_comment, multispace0))
+                        .map(|_| ());
+                let expected: ParseResult<'_, ()> =
+                    alt((comments, value((), multispace1))).parse(&input);
+                let actual = super::separator(&input);
+                match (actual, expected) {
+                    (Err(nom::Err::Error(_)), Err(nom::Err::Error(_))) => {}
+                    (actual, expected) => {
+                        assert_eq!(actual, expected, "{input:?}")
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn direct_character_match_agrees_with_nom_including_unicode() {
+        for expected in ['A', '_', '#', '\'', '\0', 'é', '🦀', '\u{3000}'] {
+            for input in
+                ["", "A", "#{}", "éA", "🦀!", "\u{3000}a", "\0tail", "Aé"]
+            {
+                assert_eq!(
+                    super::match_char(input, expected),
+                    nom::character::complete::char::<_, VerboseError<_>>(
+                        expected
+                    )(input)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn separated_accepts_unicode_delimiters_and_restores_failed_tail() {
+        let mut parser = super::separated('🦀', digit);
+        assert_eq!(
+            parser.parse("1 /*a*/ 🦀 2 🦀 X"),
+            Ok((" 🦀 X", vec!['1', '2']))
+        );
+        assert_eq!(
+            parser.parse("1   /*tail*/"),
+            Ok(("   /*tail*/", vec!['1']))
+        );
+    }
 
     #[test]
     fn comment() {
@@ -466,22 +556,22 @@ mod tests {
 
     #[test]
     fn ignorable() {
-        let (res, _) = super::ignorable("").finish().unwrap();
+        let res = super::ignorable("");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable(" ").finish().unwrap();
+        let res = super::ignorable(" ");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable("  ").finish().unwrap();
+        let res = super::ignorable("  ");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable("/* comment */").finish().unwrap();
+        let res = super::ignorable("/* comment */");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable("/* comment */ ").finish().unwrap();
+        let res = super::ignorable("/* comment */ ");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable(" /* comment */ ").finish().unwrap();
+        let res = super::ignorable(" /* comment */ ");
         assert_eq!(res, "");
     }
 
@@ -497,7 +587,7 @@ mod tests {
             ("  /*unterminated", "/*unterminated"),
             ("/*valid*/  /*unterminated", "/*unterminated"),
         ] {
-            let (remaining, ()) = super::ignorable(input).unwrap();
+            let remaining = super::ignorable(input);
             assert_eq!(remaining, rest, "input: {input:?}");
         }
     }
@@ -524,7 +614,7 @@ mod tests {
             parser.parse("#1 #18446744073709551616"),
             Err(nom::Err::Failure(_))
         ));
-        let mut empty = super::many0_(super::ignorable);
+        let mut empty = super::many0_(super::tag_(""));
         assert!(matches!(empty.parse("X"), Err(nom::Err::Error(_))));
     }
 
