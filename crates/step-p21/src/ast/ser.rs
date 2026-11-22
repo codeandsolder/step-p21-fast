@@ -356,7 +356,7 @@ impl ser::SerializeStruct for &mut RecordSerializer {
             let name = std::mem::replace(&mut self.name, name);
             let params = std::mem::replace(&mut self.parameters, params);
             self.parameters.push(Parameter::Typed {
-                keyword: name,
+                keyword: name.into_boxed_str(),
                 parameter: Box::new(params.into_iter().collect()),
             });
         }

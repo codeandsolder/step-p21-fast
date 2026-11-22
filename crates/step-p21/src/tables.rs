@@ -374,11 +374,11 @@ impl<'de, T: Deserialize<'de> + Holder + WithVisitor> de::Visitor<'de>
                 Ok(PlaceHolder::Ref(Name::Value(value)))
             }
             "ConstantEntity" => {
-                let name: String = variant.newtype_variant()?;
+                let name: Box<str> = variant.newtype_variant()?;
                 Ok(PlaceHolder::Ref(Name::ConstantEntity(name)))
             }
             "ConstantValue" => {
-                let name: String = variant.newtype_variant()?;
+                let name: Box<str> = variant.newtype_variant()?;
                 Ok(PlaceHolder::Ref(Name::ConstantValue(name)))
             }
             _ => Err(de::Error::unknown_variant(

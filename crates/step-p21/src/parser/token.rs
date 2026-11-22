@@ -317,10 +317,10 @@ fn instance_name(input: &str, prefix: char) -> ParseResult<'_, u64> {
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
-pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
-    (char_('#'), standard_keyword)
-        .map(|(_sharp, name)| name)
-        .parse(input)
+pub fn constant_entity_name(input: &str) -> ParseResult<'_, Box<str>> {
+    let (rest, _) = match_char(input, '#')?;
+    let (rest, keyword) = standard_keyword_span(rest)?;
+    Ok((rest, keyword.into()))
 }
 
 /// `constant_value_name` = `@` ( [upper] ) { [upper] |
@@ -329,10 +329,10 @@ pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
 /// # Errors
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
-pub fn constant_value_name(input: &str) -> ParseResult<'_, String> {
-    (char_('@'), standard_keyword)
-        .map(|(_sharp, name)| name)
-        .parse(input)
+pub fn constant_value_name(input: &str) -> ParseResult<'_, Box<str>> {
+    let (rest, _) = match_char(input, '@')?;
+    let (rest, keyword) = standard_keyword_span(rest)?;
+    Ok((rest, keyword.into()))
 }
 
 /// `lhs_occurrence_name` = ( [`entity_instance_name`] | [`value_instance_name`]
@@ -762,6 +762,28 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn constant_names_preserve_their_spelling_and_reference_class() {
+        use crate::ast::Name;
+
+        assert_eq!(
+            super::constant_entity_name("#ENTITY_CONST1;"),
+            Ok((";", "ENTITY_CONST1".into()))
+        );
+        assert_eq!(
+            super::constant_value_name("@VALUE_CONST2é"),
+            Ok(("é", "VALUE_CONST2".into()))
+        );
+        assert_eq!(
+            super::rhs_occurrence_name("#ENTITY_CONST1,"),
+            Ok((",", Name::ConstantEntity("ENTITY_CONST1".into())))
+        );
+        assert_eq!(
+            super::rhs_occurrence_name("@VALUE_CONST2,"),
+            Ok((",", Name::ConstantValue("VALUE_CONST2".into())))
+        );
     }
 
     #[test]
