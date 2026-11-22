@@ -4,13 +4,12 @@ use crate::{
     ast::{Name, Parameter, Uri},
     parser::{
         basic::{lower, upper},
-        combinator::{ParseResult, skip_spaces},
+        combinator::{ParseResult, char_, match_char, skip_spaces},
     },
 };
 use nom::{
     Parser,
     branch::alt,
-    character::complete::char,
     combinator::opt,
     error::{ErrorKind, ParseError},
 };
@@ -26,7 +25,7 @@ use std::simd::{
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn sign(input: &str) -> ParseResult<'_, char> {
-    alt((char('+'), char('-'))).parse(input)
+    alt((char_('+'), char_('-'))).parse(input)
 }
 
 /// integer = \[ [sign] \] [`digit`](super::basic::digit) {
@@ -107,7 +106,7 @@ fn parse_signed_integer(sign: Option<char>, digits: &str) -> Result<i64, ()> {
 /// `E` \[ [sign] \] [`digit`](super::basic::digit) {
 /// [`digit`](super::basic::digit) } .
 fn exponent(input: &str) -> ParseResult<'_, i64> {
-    let (rest, _) = char('E')(input)?;
+    let (rest, _) = match_char(input, 'E')?;
     let (rest, (sign, digits)) = number_prefix(skip_spaces(rest))?;
     integer_value(input, rest, sign, digits)
 }
@@ -143,7 +142,7 @@ fn real_suffix<'a>(
     sign: Option<char>,
     integral: &str,
 ) -> ParseResult<'a, f64> {
-    let (rest, _) = char('.')(rest)?;
+    let (rest, _) = match_char(rest, '.')?;
     let (rest, fractional) = digit_span(rest);
     // Retain the optional exponent's backtracking semantics for malformed
     // exponents, without constructing a recoverable error when E is absent.
@@ -191,14 +190,14 @@ fn finite_real(rest: &str, number: f64) -> ParseResult<'_, f64> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn string(input: &str) -> ParseResult<'_, String> {
-    let (mut rest, _) = char('\'')(input)?;
+    let (mut rest, _) = match_char(input, '\'')?;
     let mut decoded = String::new();
     loop {
         // Search whole UTF-8 spans instead of building an intermediate
         // Vec<char> and speculatively parsing an escape at every character.
         let end = rest.find('\'').unwrap_or(rest.len());
         let (text, closing) = rest.split_at(end);
-        let (after, _) = char('\'')(closing)?;
+        let (after, _) = match_char(closing, '\'')?;
         decoded.push_str(text);
         if let Some(after_escape) = after.strip_prefix('\'') {
             decoded.push('\'');
@@ -226,7 +225,7 @@ pub fn resource(input: &str) -> ParseResult<'_, Uri> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn enumeration(input: &str) -> ParseResult<'_, String> {
-    (char('.'), standard_keyword, char('.'))
+    (char_('.'), standard_keyword, char_('.'))
         .map(|(_head, name, _tail)| name)
         .parse(input)
 }
@@ -283,12 +282,31 @@ pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
 }
 
 fn instance_name(input: &str, prefix: char) -> ParseResult<'_, u64> {
-    let (rest, _) = char(prefix)(input)?;
-    let (rest, digits) = required_digits(rest)?;
-    digits
-        .parse()
-        .map(|value| (rest, value))
-        .map_err(|_| u64_overflow(rest))
+    let (digits, _) = match_char(input, prefix)?;
+    let mut value = 0_u64;
+    let mut count = 0;
+    for &byte in digits.as_bytes() {
+        let digit = byte.wrapping_sub(b'0');
+        if digit > 9 {
+            break;
+        }
+        let Some(next) = value
+            .checked_mul(10)
+            .and_then(|n| n.checked_add(u64::from(digit)))
+        else {
+            let (rest, _) = digit_span(&digits[count..]);
+            return Err(u64_overflow(rest));
+        };
+        value = next;
+        count += 1;
+    }
+    if count == 0 {
+        return Err(nom::Err::Error(ParseError::from_error_kind(
+            digits,
+            ErrorKind::Digit,
+        )));
+    }
+    Ok((&digits[count..], value))
 }
 
 /// `constant_entity_name` = `#` ( [upper] ) { [upper] |
@@ -298,7 +316,7 @@ fn instance_name(input: &str, prefix: char) -> ParseResult<'_, u64> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
-    (char('#'), standard_keyword)
+    (char_('#'), standard_keyword)
         .map(|(_sharp, name)| name)
         .parse(input)
 }
@@ -310,7 +328,7 @@ pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn constant_value_name(input: &str) -> ParseResult<'_, String> {
-    (char('@'), standard_keyword)
+    (char_('@'), standard_keyword)
         .map(|(_sharp, name)| name)
         .parse(input)
 }
@@ -356,10 +374,10 @@ pub fn rhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn anchor_name(input: &str) -> ParseResult<'_, String> {
-    let (remaining, _) = char('<')(input)?;
+    let (remaining, _) = match_char(input, '<')?;
     let end = remaining.find('>').unwrap_or(remaining.len());
     let (name, closing) = remaining.split_at(end);
-    let (rest, _) = char('>')(closing)?;
+    let (rest, _) = match_char(closing, '>')?;
     Ok((rest, name.to_owned()))
 }
 
@@ -390,8 +408,13 @@ pub fn standard_keyword(input: &str) -> ParseResult<'_, String> {
 
 /// Return the source span so both keyword forms allocate exactly once.
 fn standard_keyword_span(input: &str) -> ParseResult<'_, &str> {
-    let (rest, _) = upper(input)?;
-    let rest = &rest[keyword_tail_len(rest.as_bytes())..];
+    if !matches!(input.as_bytes().first(), Some(b'A'..=b'Z' | b'_')) {
+        return Err(nom::Err::Error(ParseError::from_error_kind(
+            input,
+            ErrorKind::Satisfy,
+        )));
+    }
+    let rest = &input[1 + keyword_tail_len(&input.as_bytes()[1..])..];
     Ok((rest, &input[..input.len() - rest.len()]))
 }
 
@@ -427,7 +450,7 @@ fn keyword_tail_len(input: &[u8]) -> usize {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn user_defined_keyword(input: &str) -> ParseResult<'_, String> {
-    let (rest, _) = char('!')(input)?;
+    let (rest, _) = match_char(input, '!')?;
     let (rest, _) = standard_keyword_span(rest)?;
     // The leading '!' is part of the identifier. Removing it aliases a
     // user-defined type with a standard type of the same spelling.
@@ -698,6 +721,45 @@ mod tests {
         let (res, s) = super::string("'vim''s'").finish().unwrap();
         assert_eq!(res, "");
         assert_eq!(s, "vim's");
+    }
+
+    #[test]
+    fn fused_identifier_scan_matches_digit_and_integer_oracle() {
+        use nom::character::complete::digit1;
+        use nom_language::error::VerboseError;
+
+        for prefix in ['#', '@'] {
+            for digits in [
+                "",
+                "0",
+                "000",
+                "9",
+                "123456",
+                "18446744073709551615",
+                "18446744073709551616",
+                "184467440737095516150",
+                "99999999999999999999999999999999999999",
+                "0000000000000000000000000000000000000000018446744073709551615",
+                "0000000000000000000000000000000000000000018446744073709551616",
+            ] {
+                for suffix in ["", ";", "é", "٤", " ", "/*tail*/", "0"] {
+                    let text = format!("{prefix}{digits}{suffix}");
+                    let reference = digit1::<_, VerboseError<_>>(&text[1..]);
+                    let expected = match reference {
+                        Ok((rest, token)) => token
+                            .parse::<u64>()
+                            .map(|value| (rest, value))
+                            .map_err(|_| super::u64_overflow(rest)),
+                        Err(error) => Err(error),
+                    };
+                    assert_eq!(
+                        super::instance_name(&text, prefix),
+                        expected,
+                        "{text:?}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
