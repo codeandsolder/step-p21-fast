@@ -149,18 +149,14 @@ fn repeat_after<'a, O>(
     mut element: impl ExchangeParser<'a, O>,
     delimiter: Option<char>,
 ) -> ParseResult<'a, Vec<O>> {
+    // Singleton separated lists need only one slot. Larger lists use the
+    // normal Vec growth policy to avoid an immediate reallocation.
+    let Some(mut start) = following_start(input, delimiter) else {
+        return Ok((input, vec![first]));
+    };
     let mut values = Vec::new();
     values.extend([first]);
     loop {
-        let start = ignorable(input);
-        let start = if let Some(delimiter) = delimiter {
-            let Some(after) = start.strip_prefix(delimiter) else {
-                return Ok((input, values));
-            };
-            ignorable(after)
-        } else {
-            start
-        };
         match element.parse(start) {
             Ok((rest, value)) => {
                 if rest.len() == input.len() {
@@ -175,6 +171,19 @@ fn repeat_after<'a, O>(
             Err(nom::Err::Error(_)) => return Ok((input, values)),
             Err(error) => return Err(error),
         }
+        let Some(next) = following_start(input, delimiter) else {
+            return Ok((input, values));
+        };
+        start = next;
+    }
+}
+
+/// Locate the next element without allocating a speculative delimiter error.
+fn following_start(input: &str, delimiter: Option<char>) -> Option<&str> {
+    let start = ignorable(input);
+    match delimiter {
+        Some(delimiter) => start.strip_prefix(delimiter).map(ignorable),
+        None => Some(start),
     }
 }
 
