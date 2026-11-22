@@ -3,6 +3,14 @@
 - Build, lint, and test on the shared dated fleet nightly; remove the
   unsupported stable MSRV promise and the floating formatter installation.
 
+- Scan STEP keyword continuations with safe portable SIMD, preserving ASCII
+  token boundaries and scalar-tail handling.
+- Scan strings, URI delimiters, tags and signatures without temporary character
+  vectors; preserve doubled quotes and Unicode.
+- Reject unconsumed nonseparator input in complete exchange parsing.
+- Canonicalize EXPRESS entity sets at construction and report invalid namespace
+  indices as typed semantic errors instead of panicking.
+
 - Enforce file-wide instance ID uniqueness in generated named and positional
   `TableInit` implementations, including appended DATA sections, rather
   than checking only within each EXPRESS entity type's map.
