@@ -74,13 +74,13 @@ impl<'st> Namespace<'st> {
     }
 
     #[must_use = "the returned predicate describes namespace emptiness"]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.ast.is_empty()
     }
 
     /// Size of indexed AST
     #[must_use = "the returned count describes namespace size"]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.ast.len()
     }
 
