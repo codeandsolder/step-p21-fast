@@ -35,20 +35,15 @@ pub fn itertools_crate() -> syn::Path {
     syn::parse_quote!( #step_p21::itertools )
 }
 
-/// Returns `crate` or `::step_p21` according to the caller's crate name.
+/// Resolve the dependency name, including aliases, without guessing the Cargo
+/// target.
 pub fn step_p21_crate() -> syn::Path {
     match crate_name("step-p21").unwrap_or_else(|error| {
         abort_call_site!("failed to locate step-p21 crate: {}", error)
     }) {
-        // Cargo sets this for integration tests/benches, which reference their
-        // package as an external crate even though proc_macro_crate says
-        // Itself.
-        FoundCrate::Itself
-            if std::env::var_os("CARGO_TARGET_TMPDIR").is_some() =>
-        {
-            syn::parse_quote!(::step_p21)
-        }
-        FoundCrate::Itself => syn::parse_quote!(crate),
+        // Within the package, the library aliases itself as step_p21.
+        // Its other targets already import that library under this name.
+        FoundCrate::Itself => syn::parse_quote!(::step_p21),
         FoundCrate::Name(name) => {
             let ident = syn::Ident::new(&name, Span::call_site());
             syn::parse_quote!(::#ident)

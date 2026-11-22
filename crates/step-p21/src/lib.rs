@@ -113,6 +113,10 @@
 
 #![deny(rustdoc::broken_intra_doc_links)]
 
+// Give derive expansions the same absolute path in the library itself and
+// in other targets of this package (examples, binaries, tests, and doctests).
+extern crate self as step_p21;
+
 pub mod ast;
 pub mod error;
 pub mod header;
@@ -126,3 +130,20 @@ pub use itertools;
 pub use serde;
 
 pub use step_p21_derive::*;
+
+#[cfg(test)]
+mod derive_path_tests {
+    #[derive(Debug, PartialEq, Eq, step_p21::Deserialize)]
+    pub struct Point {
+        x: i64,
+    }
+
+    #[test]
+    fn derive_resolves_the_library_itself() -> anyhow::Result<()> {
+        let (_, record) = crate::parser::exchange::simple_record("POINT(7)")
+            .map_err(|error| anyhow::anyhow!("{error:?}"))?;
+        let point: Point = serde::Deserialize::deserialize(&record)?;
+        assert_eq!(point, Point { x: 7 });
+        Ok(())
+    }
+}
