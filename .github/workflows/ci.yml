@@ -17,16 +17,10 @@ permissions:
 jobs:
   rust:
     name: Test, lint, docs, EXPRESS regression
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@1c9f5c8968c4caf8754c98ebeb0889d9e774b5ed # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@59b38db879d10529d2bfe3ab7bc34a8c076900fd # main
     with:
-      rust-toolchain: "1.100.0"
-      rust-components: "clippy rustfmt"
       command: |
-        rustup toolchain install nightly --profile minimal --component rustfmt
-        mkdir -p "$RUNNER_TEMP/step-p21-tools"
-        ln -s "$(rustup which --toolchain nightly rustfmt)" "$RUNNER_TEMP/step-p21-tools/rustfmt"
-        export PATH="$RUNNER_TEMP/step-p21-tools:$PATH"
-        cargo +nightly fmt --all -- --check
+        cargo fmt --all -- --check
         cargo test --workspace --all-features --locked
         cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
         cargo doc --workspace --no-deps --all-features --locked
@@ -38,20 +32,21 @@ jobs:
 
   msrv:
     name: MSRV (release tags)
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@1c9f5c8968c4caf8754c98ebeb0889d9e774b5ed # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@59b38db879d10529d2bfe3ab7bc34a8c076900fd # main
     with:
       validation-tier: release
       rust-toolchain: "1.85.0"
       rust-components: "rustfmt"
       command: |
-        rustup toolchain install nightly --profile minimal --component rustfmt
+        # Release-only MSRV builds still exercise generator snapshots with
+        # the repository's pinned nightly formatter, not a floating nightly.
         mkdir -p "$RUNNER_TEMP/step-p21-tools"
-        ln -s "$(rustup which --toolchain nightly rustfmt)" "$RUNNER_TEMP/step-p21-tools/rustfmt"
+        ln -s "$(env -u RUSTUP_TOOLCHAIN rustup which rustfmt)" "$RUNNER_TEMP/step-p21-tools/rustfmt"
         export PATH="$RUNNER_TEMP/step-p21-tools:$PATH"
         cargo test --workspace --all-features --locked
 
   strict-rust:
     name: Strict Rust
-    uses: codeandsolder/rust-skills2/.github/workflows/strict-rust.yml@f01e6b6b93a444e11600b90b5ca5ff42ec4206ee # main
+    uses: codeandsolder/rust-skills2/.github/workflows/strict-rust.yml@bc1cca5a1fdae152b14fe4399341ba41b601837f # main
     with:
       allow-test-panics: true
