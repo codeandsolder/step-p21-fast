@@ -53,6 +53,26 @@ intended as a hostile fork.
 This fork uses the fleet-pinned nightly in `rust-toolchain.toml`. Build
 consumers with the same compiler; no stable MSRV is promised.
 
+### Parser performance and equivalence
+
+Use the corpus runner with the same files and pinned compiler when comparing
+parser revisions:
+
+```sh
+cargo run --release -p step-p21 --example parser_corpus -- --iterations 5 model.step assembly.stp
+cargo run --release -p step-p21 --example parser_corpus -- --verify model.step assembly.stp
+```
+
+The output is tab-separated: status, input bytes, elapsed nanoseconds (timing)
+or a complete AST fingerprint (verification), and path. File reads, UTF-8
+validation and the initial warm-up are outside the measured repetitions;
+timings include parsing and dropping the owned AST. Verification fingerprints
+are intended for comparison with the same compiler and AST representation,
+not as stable interchange hashes. Invalid UTF-8 and rejected STEP files are
+reported separately without timing or silently rewriting their contents.
+Legacy CAD exports using other text encodings must be explicitly decoded
+before parsing.
+
 ### Changes Since the Fork
 
 See [`CHANGELOG.md`](CHANGELOG.md); Apache-2.0 requires stating modifications, so
