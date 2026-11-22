@@ -1,5 +1,9 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- Dispatch STEP parameter alternatives by their first byte, share numeric
+  prefix scans, and accumulate repeated grammar productions into a single
+  vector while preserving recoverable-tail and fatal-error behavior.
+
 - Build, lint, and test on the shared dated fleet nightly; remove the
   unsupported stable MSRV promise and the floating formatter installation.
 

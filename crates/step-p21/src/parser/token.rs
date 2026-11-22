@@ -1,7 +1,7 @@
 //! Parser for tokens defined in the table 2 of ISO-10303-21
 
 use crate::{
-    ast::{Name, Uri},
+    ast::{Name, Parameter, Uri},
     parser::{
         basic::{lower, upper},
         combinator::ParseResult,
@@ -11,7 +11,8 @@ use nom::{
     Parser,
     branch::alt,
     character::complete::{char, digit0, digit1, multispace0},
-    combinator::{map_res, opt},
+    combinator::opt,
+    error::{ErrorKind, ParseError},
 };
 
 use std::simd::{
@@ -35,10 +36,36 @@ pub fn sign(input: &str) -> ParseResult<'_, char> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn integer(input: &str) -> ParseResult<'_, i64> {
-    map_res((opt(sign), multispace0, digit1), |(sign, _, digits)| {
-        parse_signed_integer(sign, digits)
-    })
-    .parse(input)
+    let (rest, (sign, digits)) = number_prefix(input)?;
+    integer_value(input, rest, sign, digits)
+}
+
+fn number_prefix(input: &str) -> ParseResult<'_, (Option<char>, &str)> {
+    // A missing sign is the normal case, not a failed parser alternative.
+    let (sign, rest) = match input.as_bytes().first() {
+        Some(b'+') => (Some('+'), &input[1..]),
+        Some(b'-') => (Some('-'), &input[1..]),
+        _ => (None, input),
+    };
+    let (rest, _) = multispace0(rest)?;
+    let (rest, digits) = digit1(rest)?;
+    Ok((rest, (sign, digits)))
+}
+
+fn integer_value<'a>(
+    input: &'a str,
+    rest: &'a str,
+    sign: Option<char>,
+    digits: &str,
+) -> ParseResult<'a, i64> {
+    parse_signed_integer(sign, digits)
+        .map(|value| (rest, value))
+        .map_err(|()| {
+            nom::Err::Error(ParseError::from_error_kind(
+                input,
+                ErrorKind::MapRes,
+            ))
+        })
 }
 
 /// Parse the full i64 range without allocating a signed intermediate string.
@@ -58,11 +85,10 @@ fn parse_signed_integer(sign: Option<char>, digits: &str) -> Result<i64, ()> {
 /// `E` \[ [sign] \] [`digit`](super::basic::digit) {
 /// [`digit`](super::basic::digit) } .
 fn exponent(input: &str) -> ParseResult<'_, i64> {
-    map_res(
-        (char('E'), multispace0, opt(sign), multispace0, digit1),
-        |(_e, _sp1, sign, _sp2, digits)| parse_signed_integer(sign, digits),
-    )
-    .parse(input)
+    let (rest, _) = char('E')(input)?;
+    let (rest, _) = multispace0(rest)?;
+    let (rest, (sign, digits)) = number_prefix(rest)?;
+    integer_value(input, rest, sign, digits)
 }
 
 /// real = \[ [sign] \] [`digit`](super::basic::digit) {
@@ -74,15 +100,37 @@ fn exponent(input: &str) -> ParseResult<'_, i64> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn real(input: &str) -> ParseResult<'_, f64> {
-    let (rest, (sign, _space, integral, _point, fractional, exp)) = (
-        opt(sign),
-        multispace0,
-        digit1,
-        char('.'),
-        digit0,
-        opt(exponent),
-    )
-        .parse(input)?;
+    let (rest, (sign, integral)) = number_prefix(input)?;
+    real_suffix(input, rest, sign, integral)
+}
+
+/// Parse the disjoint integer/real alternatives using one common digit scan.
+pub(super) fn number(input: &str) -> ParseResult<'_, Parameter> {
+    let (rest, (sign, integral)) = number_prefix(input)?;
+    if rest.starts_with('.') {
+        real_suffix(input, rest, sign, integral)
+            .map(|(remaining, value)| (remaining, Parameter::Real(value)))
+    } else {
+        integer_value(input, rest, sign, integral)
+            .map(|(remaining, value)| (remaining, Parameter::Integer(value)))
+    }
+}
+
+fn real_suffix<'a>(
+    input: &'a str,
+    rest: &'a str,
+    sign: Option<char>,
+    integral: &str,
+) -> ParseResult<'a, f64> {
+    let (rest, _) = char('.')(rest)?;
+    let (rest, fractional) = digit0(rest)?;
+    // Retain the optional exponent's backtracking semantics for malformed
+    // exponents, without constructing a recoverable error when E is absent.
+    let (rest, exp) = if rest.starts_with('E') {
+        opt(exponent).parse(rest)?
+    } else {
+        (rest, None)
+    };
     // Part 21's ordinary real-number spelling is already accepted directly
     // by f64::from_str. Borrow it from the input instead of allocating and
     // reparsing a formatted decimal string for every coordinate and vector.
@@ -112,7 +160,7 @@ fn finite_real(rest: &str, number: f64) -> ParseResult<'_, f64> {
 /// EXPRESS string-token grammar:
 ///
 /// ```text
-/// string = "'" { [special] | [`digit`](super::basic::digit) | [space] | [lower] | [upper] |
+/// string = "'" { [special] | [digit] | [space] | [lower] | [upper] |
 ///   high_codepoint | [apostrophe] [apostrophe] |
 ///   [reverse_solidus] [reverse_solidus] | control_directive } "'" .
 /// ```

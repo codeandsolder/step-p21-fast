@@ -16,7 +16,7 @@ use nom::{
     bytes::complete::{tag, take_until},
     character::complete::{char, multispace0, multispace1},
     combinator::{opt, value},
-    multi::{many0, many1},
+    multi::{fold_many0, many1},
 };
 use nom_language::error::VerboseError;
 
@@ -109,9 +109,11 @@ pub fn many0_<'a, O>(
             (input, Some(first)) => (input, first),
             (input, None) => return Ok((input, Vec::new())),
         };
-        let (input, tail) =
-            many0((ignorable, f.clone()).map(|(_sep, v)| v)).parse(input)?;
-        Ok((input, std::iter::once(first).chain(tail).collect()))
+        append_many(
+            input,
+            vec![first],
+            (ignorable, f.clone()).map(|(_sep, value)| value),
+        )
     }
 }
 
@@ -119,14 +121,31 @@ pub fn many1_<'a, O>(
     f: impl ExchangeParser<'a, O>,
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
-        (f.clone(), many0((ignorable, f.clone())))
-            .map(|(first, tail)| {
-                let first = vec![first];
-                let tail = tail.into_iter().map(|(_sep, val)| val);
-                first.into_iter().chain(tail).collect()
-            })
-            .parse(input)
+        let (input, first) = f.clone().parse(input)?;
+        append_many(
+            input,
+            vec![first],
+            (ignorable, f.clone()).map(|(_sep, value)| value),
+        )
     }
+}
+
+/// Extend a single allocation, leaving a failed speculative tail unconsumed.
+/// Like nom's many0, reject non-consuming repetition and propagate failures.
+fn append_many<'a, O>(
+    input: &'a str,
+    mut values: Vec<O>,
+    tail: impl Parser<&'a str, Output = O, Error = VerboseError<&'a str>>,
+) -> ParseResult<'a, Vec<O>> {
+    fold_many0(
+        tail,
+        || std::mem::take(&mut values),
+        |mut values, value| {
+            values.push(value);
+            values
+        },
+    )
+    .parse(input)
 }
 
 ///
@@ -160,19 +179,13 @@ pub fn separated<'a, O>(
     f: impl ExchangeParser<'a, O>,
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
-        (
-            f.clone(),
-            many0(
-                (ignorable, char(c), ignorable, f.clone())
-                    .map(|(_sep1, _char, _sep2, value)| value),
-            ),
+        let (input, first) = f.clone().parse(input)?;
+        append_many(
+            input,
+            vec![first],
+            (ignorable, char(c), ignorable, f.clone())
+                .map(|(_sep1, _char, _sep2, value)| value),
         )
-            .map(|(first, mut tails)| {
-                let mut values = vec![first];
-                values.append(&mut tails);
-                values
-            })
-            .parse(input)
     }
 }
 
@@ -458,6 +471,28 @@ mod tests {
 
     fn comma_digit(input: &str) -> ParseResult<'_, Vec<char>> {
         comma_separated(digit).parse(input)
+    }
+
+    #[test]
+    fn repeated_parsers_leave_recoverable_tails_unconsumed_and_propagate_failure()
+     {
+        assert_eq!(
+            comma_digit("1, 2 /*tail*/ ,X"),
+            Ok((" /*tail*/ ,X", vec!['1', '2']))
+        );
+        assert_eq!(
+            comma_digit("1, /*unterminated"),
+            Ok((", /*unterminated", vec!['1']))
+        );
+        assert_eq!(many0_digit("1 /*tail*/ X"), Ok((" /*tail*/ X", vec!['1'])));
+        let mut parser =
+            super::many0_(crate::parser::token::entity_instance_name);
+        assert!(matches!(
+            parser.parse("#1 #18446744073709551616"),
+            Err(nom::Err::Failure(_))
+        ));
+        let mut empty = super::many0_(super::ignorable);
+        assert!(matches!(empty.parse("X"), Err(nom::Err::Error(_))));
     }
 
     #[test]

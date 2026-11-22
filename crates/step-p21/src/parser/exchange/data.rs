@@ -1,5 +1,5 @@
 use crate::{
-    ast::{DataSection, EntityInstance, Record, SubSuperRecord},
+    ast::{DataSection, EntityInstance, Parameter, Record, SubSuperRecord},
     parser::{
         combinator::{ParseResult, char_, many0_, opt_, tag_, tuple_},
         exchange::parameter_list,
@@ -94,7 +94,7 @@ pub fn simple_record(input: &str) -> ParseResult<'_, Record> {
     tuple_((keyword, char_('('), opt_(parameter_list), char_(')')))
         .map(|(name, _open, parameter, _close)| Record {
             name,
-            parameter: parameter.unwrap_or_default().into_iter().collect(),
+            parameter: Parameter::List(parameter.unwrap_or_default()),
         })
         .parse(input)
 }
