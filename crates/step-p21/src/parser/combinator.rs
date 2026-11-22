@@ -203,14 +203,18 @@ pub(super) fn skip_spaces(input: &str) -> &str {
 #[must_use = "returns the remaining input after skipping separators"]
 pub fn ignorable(mut input: &str) -> &str {
     loop {
-        input = skip_spaces(input);
-        let Some(content) = input.strip_prefix("/*") else {
-            return input;
-        };
-        let Some((rest, _)) = comment_body(content) else {
-            return input;
-        };
-        input = rest;
+        match input.as_bytes() {
+            [b' ' | b'\t' | b'\r' | b'\n', ..] => {
+                input = &input[1..];
+            }
+            [b'/', b'*', ..] => {
+                let Some((rest, _)) = comment_body(&input[2..]) else {
+                    return input;
+                };
+                input = rest;
+            }
+            _ => return input,
+        }
     }
 }
 
@@ -228,6 +232,23 @@ pub fn comma_separated<'a, O>(
     f: impl ExchangeParser<'a, O>,
 ) -> impl ExchangeParser<'a, Vec<O>> {
     separated(',', f)
+}
+
+/// Parse a comma-separated list enclosed in parentheses, including empty
+/// lists. Separators around delimiters follow the ordinary STEP grammar.
+pub(super) fn parenthesized_list<'a, O>(
+    element: impl ExchangeParser<'a, O>,
+) -> impl ExchangeParser<'a, Vec<O>> {
+    move |input| {
+        let (rest, _) = match_char(input, '(')?;
+        let rest = ignorable(rest);
+        if let Some(rest) = rest.strip_prefix(')') {
+            return Ok((rest, Vec::new()));
+        }
+        let (rest, values) = comma_separated(element.clone()).parse(rest)?;
+        let (rest, _) = match_char(ignorable(rest), ')')?;
+        Ok((rest, values))
+    }
 }
 
 /// Sequence of separated tokens

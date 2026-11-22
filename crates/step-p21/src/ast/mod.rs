@@ -816,9 +816,11 @@ pub struct Anchor {
 }
 derive_ast_from_str!(Anchor, parser::exchange::anchor);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, derive_more::From)]
 pub enum AnchorItem {
+    #[from]
     Integer(i64),
+    #[from]
     Real(f64),
     String(String),
     Enumeration(String),
@@ -827,6 +829,8 @@ pub enum AnchorItem {
     NotProvided,
     /// A reference to entity or value
     Name(Name),
+    /// A URI resource (not dereferenced by the syntax parser).
+    Resource(Uri),
     /// List of other parameters
     List(Vec<Self>),
 }

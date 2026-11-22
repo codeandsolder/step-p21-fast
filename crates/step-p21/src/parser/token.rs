@@ -1,7 +1,7 @@
 //! Parser for tokens defined in the table 2 of ISO-10303-21
 
 use crate::{
-    ast::{Name, Parameter, Uri},
+    ast::{Name, Uri},
     parser::{
         basic::{lower, upper},
         combinator::{ParseResult, char_, match_char, skip_spaces},
@@ -125,14 +125,16 @@ pub fn real(input: &str) -> ParseResult<'_, f64> {
 }
 
 /// Parse the disjoint integer/real alternatives using one common digit scan.
-pub(super) fn number(input: &str) -> ParseResult<'_, Parameter> {
+pub(super) fn number<T: From<i64> + From<f64>>(
+    input: &str,
+) -> ParseResult<'_, T> {
     let (rest, (sign, integral)) = number_prefix(input)?;
     if rest.starts_with('.') {
         real_suffix(input, rest, sign, integral)
-            .map(|(remaining, value)| (remaining, Parameter::Real(value)))
+            .map(|(remaining, value)| (remaining, T::from(value)))
     } else {
         integer_value(input, rest, sign, integral)
-            .map(|(remaining, value)| (remaining, Parameter::Integer(value)))
+            .map(|(remaining, value)| (remaining, T::from(value)))
     }
 }
 

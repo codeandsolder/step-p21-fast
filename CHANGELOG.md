@@ -1,5 +1,10 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- Flatten parameter classification and scan whitespace/comment delimiters
+  directly. Share numeric and parenthesized-list parsing between DATA
+  parameters and ANCHOR items; fix decimal anchors and support resource
+  items without dereferencing the URI.
+
 - Dispatch STEP parameter alternatives by their first byte, share numeric
   prefix scans, and accumulate repeated grammar productions into a single
   vector while preserving recoverable-tail and fatal-error behavior.
