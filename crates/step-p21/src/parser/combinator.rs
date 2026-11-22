@@ -97,8 +97,7 @@ fn comment_slice(input: &str) -> ParseResult<'_, &str> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn separator(input: &str) -> ParseResult<'_, ()> {
-    let comment =
-        many1(tuple((multispace0, comment_slice, multispace0))).map(|_| ());
+    let comment = many1((multispace0, comment_slice, multispace0)).map(|_| ());
     alt((comment, value((), multispace1))).parse(input)
 }
 
@@ -111,8 +110,7 @@ pub fn many0_<'a, O>(
             (input, None) => return Ok((input, Vec::new())),
         };
         let (input, tail) =
-            many0(tuple((ignorable, f.clone())).map(|(_sep, v)| v))
-                .parse(input)?;
+            many0((ignorable, f.clone()).map(|(_sep, v)| v)).parse(input)?;
         Ok((input, std::iter::once(first).chain(tail).collect()))
     }
 }
@@ -121,7 +119,7 @@ pub fn many1_<'a, O>(
     f: impl ExchangeParser<'a, O>,
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
-        tuple((f.clone(), many0(tuple((ignorable, f.clone())))))
+        (f.clone(), many0((ignorable, f.clone())))
             .map(|(first, tail)| {
                 let first = vec![first];
                 let tail = tail.into_iter().map(|(_sep, val)| val);
@@ -162,19 +160,19 @@ pub fn separated<'a, O>(
     f: impl ExchangeParser<'a, O>,
 ) -> impl ExchangeParser<'a, Vec<O>> {
     move |input| {
-        tuple((
+        (
             f.clone(),
             many0(
-                tuple((ignorable, char(c), ignorable, f.clone()))
+                (ignorable, char(c), ignorable, f.clone())
                     .map(|(_sep1, _char, _sep2, value)| value),
             ),
-        ))
-        .map(|(first, mut tails)| {
-            let mut values = vec![first];
-            values.append(&mut tails);
-            values
-        })
-        .parse(input)
+        )
+            .map(|(first, mut tails)| {
+                let mut values = vec![first];
+                values.append(&mut tails);
+                values
+            })
+            .parse(input)
     }
 }
 
@@ -200,11 +198,10 @@ pub trait Tuple<'a, O>: Clone {
     fn parse(&mut self, input: &'a str) -> ParseResult<'a, O>;
 }
 
-/// Expand `tuple_gen!(f1, f2, f3)` to `tuple((f1, ignorable, tuple((f2,
-/// ignorable, f3))))`
+/// Build nested native nom tuples, separated by ignorable input.
 macro_rules! tuple_gen {
     ($head:ident, $($tail:ident),*) => {
-        tuple(($head.clone(), ignorable, tuple_gen!($($tail),*)))
+        ($head.clone(), ignorable, tuple_gen!($($tail),*))
     };
     ($head:ident) => {
         $head.clone()
@@ -285,15 +282,6 @@ impl_tuple!(
     f1, f2, f3, f4, f5, f6, f7, f8, f9;
     o1, o2, o3, o4, o5, o6, o7, o8, o9
 );
-
-/// Identity shim for nom 7's `sequence::tuple`, which nom 8 removed.
-///
-/// nom 8 implements `Parser` for tuples directly, so wrapping is no longer
-/// needed -- but keeping the call sites spelled `tuple((a, b, c))` states the
-/// intent, and matches how the WSN productions read in the standard.
-pub const fn tuple<T>(parsers: T) -> T {
-    parsers
-}
 
 #[cfg(test)]
 mod tests {

@@ -4,7 +4,7 @@ use crate::{
     ast::{Name, Uri},
     parser::{
         basic::{digit, lower, upper},
-        combinator::{ParseResult, tuple},
+        combinator::ParseResult,
     },
 };
 use nom::{
@@ -33,10 +33,9 @@ pub fn sign(input: &str) -> ParseResult<'_, char> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn integer(input: &str) -> ParseResult<'_, i64> {
-    map_res(
-        tuple((opt(sign), multispace0, digit1)),
-        |(sign, _, digits)| parse_signed_integer(sign, digits),
-    )
+    map_res((opt(sign), multispace0, digit1), |(sign, _, digits)| {
+        parse_signed_integer(sign, digits)
+    })
     .parse(input)
 }
 
@@ -57,7 +56,7 @@ fn parse_signed_integer(sign: Option<char>, digits: &str) -> Result<i64, ()> {
 /// `E` \[ [sign] \] [digit] { [digit] } .
 fn exponent(input: &str) -> ParseResult<'_, i64> {
     map_res(
-        tuple((char('E'), multispace0, opt(sign), multispace0, digit1)),
+        (char('E'), multispace0, opt(sign), multispace0, digit1),
         |(_e, _sp1, sign, _sp2, digits)| parse_signed_integer(sign, digits),
     )
     .parse(input)
@@ -70,15 +69,15 @@ fn exponent(input: &str) -> ParseResult<'_, i64> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn real(input: &str) -> ParseResult<'_, f64> {
-    let (rest, (sign, _space, integral, _point, fractional, exp)) = tuple((
+    let (rest, (sign, _space, integral, _point, fractional, exp)) = (
         opt(sign),
         multispace0,
         digit1,
         char('.'),
         digit0,
         opt(exponent),
-    ))
-    .parse(input)?;
+    )
+        .parse(input)?;
     // Part 21's ordinary real-number spelling is already accepted directly
     // by f64::from_str. Borrow it from the input instead of allocating and
     // reparsing a formatted decimal string for every coordinate and vector.
@@ -123,7 +122,7 @@ pub fn string(input: &str) -> ParseResult<'_, String> {
 
     let string_content = many0(escaped_char.or(normal_char.map(|c| c)));
 
-    tuple((char('\''), string_content, char('\'')))
+    (char('\''), string_content, char('\''))
         .map(|(_start, s, _end)| s.iter().collect())
         .parse(input)
 }
@@ -136,7 +135,7 @@ pub fn string(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn resource(input: &str) -> ParseResult<'_, Uri> {
-    tuple((char('<'), many0(none_of(">")), char('>')))
+    (char('<'), many0(none_of(">")), char('>'))
         .map(|(_start, s, _end)| Uri(s.iter().collect()))
         .parse(input)
 }
@@ -147,7 +146,7 @@ pub fn resource(input: &str) -> ParseResult<'_, Uri> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn enumeration(input: &str) -> ParseResult<'_, String> {
-    tuple((char('.'), standard_keyword, char('.')))
+    (char('.'), standard_keyword, char('.'))
         .map(|(_head, name, _tail)| name)
         .parse(input)
 }
@@ -192,7 +191,7 @@ fn u64_overflow(
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
-    let (input, name) = tuple((char('#'), digit1))
+    let (input, name) = (char('#'), digit1)
         .map(|(_sharp, name): (_, &str)| name.parse())
         .parse(input)?;
     name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
@@ -211,7 +210,7 @@ pub fn entity_instance_name(input: &str) -> ParseResult<'_, u64> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
-    let (input, name) = tuple((char('@'), digit1))
+    let (input, name) = (char('@'), digit1)
         .map(|(_sharp, name): (_, &str)| name.parse())
         .parse(input)?;
     name.map_or_else(|_| Err(u64_overflow(input)), |value| Ok((input, value)))
@@ -223,7 +222,7 @@ pub fn value_instance_name(input: &str) -> ParseResult<'_, u64> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
-    tuple((char('#'), standard_keyword))
+    (char('#'), standard_keyword)
         .map(|(_sharp, name)| name)
         .parse(input)
 }
@@ -234,7 +233,7 @@ pub fn constant_entity_name(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn constant_value_name(input: &str) -> ParseResult<'_, String> {
-    tuple((char('@'), standard_keyword))
+    (char('@'), standard_keyword)
         .map(|(_sharp, name)| name)
         .parse(input)
 }
@@ -277,7 +276,7 @@ pub fn rhs_occurrence_name(input: &str) -> ParseResult<'_, Name> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn anchor_name(input: &str) -> ParseResult<'_, String> {
-    tuple((char('<'), many0(none_of(">")), char('>')))
+    (char('<'), many0(none_of(">")), char('>'))
         .map(|(_start, s, _end)| s.iter().collect())
         .parse(input)
 }
@@ -336,7 +335,7 @@ pub fn user_defined_keyword(input: &str) -> ParseResult<'_, String> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn tag_name(input: &str) -> ParseResult<'_, String> {
-    tuple((alt((upper, lower)), many0(alt((upper, lower, digit)))))
+    (alt((upper, lower)), many0(alt((upper, lower, digit))))
         .map(|(first, tail)| {
             let head = &[first];
             head.iter().chain(tail.iter()).collect()

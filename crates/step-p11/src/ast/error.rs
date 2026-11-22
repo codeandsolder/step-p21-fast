@@ -27,9 +27,12 @@ impl std::error::Error for TokenizeFailed {}
 
 impl TokenizeFailed {
     #[must_use]
-    pub fn new(input: &str, err: nom::error::VerboseError<&str>) -> Self {
+    pub fn new(
+        input: &str,
+        err: nom_language::error::VerboseError<&str>,
+    ) -> Self {
         Self {
-            rendered_error: nom::error::convert_error(input, err),
+            rendered_error: nom_language::error::convert_error(input, err),
         }
     }
 }

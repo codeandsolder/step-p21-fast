@@ -77,17 +77,19 @@ impl SyntaxTree {
     /// # Errors
     /// Returns an error if the EXPRESS input is malformed or cannot be
     /// tokenized.
-    pub fn parse(input: &str) -> Result<Self, nom::error::VerboseError<&str>> {
+    pub fn parse(
+        input: &str,
+    ) -> Result<Self, nom_language::error::VerboseError<&str>> {
         let (residual, (schemas, remarks)) =
             tuple((spaces, many1(schema_decl), spaces))
                 .map(|(_start_space, schemas, _end_space)| schemas)
                 .parse(input)
                 .finish()?;
         if !residual.is_empty() {
-            return Err(nom::error::VerboseError {
+            return Err(nom_language::error::VerboseError {
                 errors: vec![(
                     residual,
-                    nom::error::VerboseErrorKind::Context(
+                    nom_language::error::VerboseErrorKind::Context(
                         "trailing EXPRESS input",
                     ),
                 )],

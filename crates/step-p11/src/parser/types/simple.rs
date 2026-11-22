@@ -103,10 +103,12 @@ pub fn width_spec(input: &str) -> ParseResult<'_, WidthSpec> {
         tuple((char('('), is_not(")"), char(')'), opt(tag("FIXED"))))
             .parse(input)?;
     let width = width.parse::<usize>().map_err(|_| {
-        nom::Err::Failure(nom::error::VerboseError {
+        nom::Err::Failure(nom_language::error::VerboseError {
             errors: vec![(
                 rest,
-                nom::error::VerboseErrorKind::Context("width-spec-overflow"),
+                nom_language::error::VerboseErrorKind::Context(
+                    "width-spec-overflow",
+                ),
             )],
         })
     })?;

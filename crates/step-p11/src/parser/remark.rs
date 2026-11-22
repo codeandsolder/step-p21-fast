@@ -10,7 +10,7 @@ use nom::{
     },
     combinator::opt,
     multi::{many0, many1, separated_list1},
-    sequence::{delimited, tuple},
+    sequence::delimited,
 };
 
 fn begin(input: &str) -> RawParseResult<'_, ()> {
@@ -18,7 +18,7 @@ fn begin(input: &str) -> RawParseResult<'_, ()> {
 }
 
 fn end(input: &str) -> RawParseResult<'_, String> {
-    tuple((many1(char('*')), char(')')))
+    (many1(char('*')), char(')'))
         .map(|(stars, lparen)| {
             format!("{}{lparen}", stars.iter().collect::<String>())
                 .trim_end_matches("*)")
@@ -28,14 +28,14 @@ fn end(input: &str) -> RawParseResult<'_, String> {
 }
 
 fn middle_star(input: &str) -> RawParseResult<'_, String> {
-    tuple((many1(char('*')), none_of("*)")))
+    (many1(char('*')), none_of("*)"))
         .map(|(stars, c)| format!("{}{c}", stars.iter().collect::<String>()))
         .parse(input)
 }
 
 /// Recognizes backtick-quoted text containing a literal closing comment marker.
 fn quoted(input: &str) -> RawParseResult<'_, String> {
-    tuple((char('`'), many0(none_of("`")), char('`')))
+    (char('`'), many0(none_of("`")), char('`'))
         .map(|(_quote_start, chars, _quote_end)| {
             format!("`{}`", chars.iter().collect::<String>())
         })
@@ -72,19 +72,21 @@ fn non_quoted(input: &str) -> RawParseResult<'_, String> {
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn embedded_remark(input: &str) -> RawParseResult<'_, Remark> {
-    tuple((
+    (
         begin,
         multispace0,
         opt(remark_tag),
         multispace0,
         many0(alt((non_quoted, quoted, middle_star))),
         end,
-    ))
-    .map(|(_begin, _sp1, tag, _sp2, chars, end)| Remark {
-        tag,
-        remark: format!("{}{end}", chars.iter().join("")).trim().to_string(),
-    })
-    .parse(input)
+    )
+        .map(|(_begin, _sp1, tag, _sp2, chars, end)| Remark {
+            tag,
+            remark: format!("{}{end}", chars.iter().join(""))
+                .trim()
+                .to_string(),
+        })
+        .parse(input)
 }
 
 /// 999 `tail_remark`
@@ -101,20 +103,20 @@ pub fn embedded_remark(input: &str) -> RawParseResult<'_, Remark> {
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn tail_remark(input: &str) -> RawParseResult<'_, Remark> {
-    tuple((
+    (
         tag("--"),
         space0,
         opt(remark_tag),
         not_line_ending,
         line_ending,
-    ))
-    .map(
-        |(_start, _sp, tag, chars, _newline): (_, _, _, &str, _)| Remark {
-            tag,
-            remark: chars.trim().to_string(),
-        },
     )
-    .parse(input)
+        .map(
+            |(_start, _sp, tag, chars, _newline): (_, _, _, &str, _)| Remark {
+                tag,
+                remark: chars.trim().to_string(),
+            },
+        )
+        .parse(input)
 }
 
 /// 147 `remark_tag` = `"` `remark_ref` { `.` `remark_ref` } `"` .
@@ -136,17 +138,17 @@ pub fn remark_tag(input: &str) -> RawParseResult<'_, Vec<String>> {
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn spaces_or_remarks(input: &str) -> RawParseResult<'_, Vec<Remark>> {
-    tuple((
-        many0(tuple((multispace0, alt((embedded_remark, tail_remark))))),
+    (
+        many0((multispace0, alt((embedded_remark, tail_remark)))),
         multispace0,
-    ))
-    .map(|(contains, _endspace)| {
-        contains
-            .into_iter()
-            .map(|(_space, remark)| remark)
-            .collect()
-    })
-    .parse(input)
+    )
+        .map(|(contains, _endspace)| {
+            contains
+                .into_iter()
+                .map(|(_space, remark)| remark)
+                .collect()
+        })
+        .parse(input)
 }
 
 #[cfg(test)]

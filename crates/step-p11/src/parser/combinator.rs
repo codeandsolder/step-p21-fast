@@ -2,7 +2,8 @@
 
 use super::remark::spaces_or_remarks;
 use crate::ast::Remark;
-use nom::{IResult, error::VerboseError, sequence::pair};
+use nom::{IResult, Mode, OutputMode, PResult, sequence::pair};
+use nom_language::error::VerboseError;
 use std::marker::PhantomData;
 
 /// Parse result without remarks
@@ -28,24 +29,33 @@ impl<P: Clone, O1, O2, F: Clone> Clone for Map<'_, P, O1, O2, F> {
     }
 }
 
-impl<'a, P, O1, O2, F>
-    nom::Parser<&'a str, (O2, Vec<Remark>), VerboseError<&'a str>>
-    for Map<'a, P, O1, O2, F>
+impl<'a, P, O1, O2, F> nom::Parser<&'a str> for Map<'a, P, O1, O2, F>
 where
     P: EsprParser<'a, O1>,
     F: Fn(O1) -> O2,
 {
-    fn parse(&mut self, input: &'a str) -> ParseResult<'a, O2> {
-        let (input, (out, remarks)) =
-            nom::Parser::parse(&mut self.parser, input)?;
-        let out = (self.f)(out);
-        Ok((input, (out, remarks)))
+    type Error = VerboseError<&'a str>;
+    type Output = (O2, Vec<Remark>);
+
+    fn process<OM: OutputMode>(
+        &mut self,
+        input: &'a str,
+    ) -> PResult<OM, &'a str, Self::Output, Self::Error> {
+        let (input, output) = self.parser.process::<OM>(input)?;
+        Ok((
+            input,
+            OM::Output::map(output, |(out, remarks)| ((self.f)(out), remarks)),
+        ))
     }
 }
 
 /// Specialized trait of `nom::Parser` to capturing remarks
 pub trait EsprParser<'a, Output>:
-    nom::Parser<&'a str, (Output, Vec<Remark>), VerboseError<&'a str>> + Clone
+    nom::Parser<
+        &'a str,
+        Output = (Output, Vec<Remark>),
+        Error = VerboseError<&'a str>,
+    > + Clone
 {
     ///
     /// # Errors
@@ -69,8 +79,11 @@ pub trait EsprParser<'a, Output>:
 }
 
 impl<'a, Output, T> EsprParser<'a, Output> for T where
-    T: nom::Parser<&'a str, (Output, Vec<Remark>), VerboseError<&'a str>>
-        + Clone
+    T: nom::Parser<
+            &'a str,
+            Output = (Output, Vec<Remark>),
+            Error = VerboseError<&'a str>,
+        > + Clone
 {
 }
 
@@ -89,7 +102,7 @@ pub fn eof(input: &str) -> ParseResult<'_, &str> {
 /// pushed. <https://doc.rust-lang.org/std/vec/struct.Vec.html#method.new>
 pub fn remarked<'a, O, F>(f: F) -> impl EsprParser<'a, O>
 where
-    F: nom::Parser<&'a str, O, VerboseError<&'a str>> + Clone,
+    F: nom::Parser<&'a str, Output = O, Error = VerboseError<&'a str>> + Clone,
 {
     use nom::Parser;
     move |input| f.clone().map(|out| (out, Vec::new())).parse(input)
@@ -141,7 +154,8 @@ pub fn not<'a>(
     f: impl EsprParser<'a, &'a str>,
 ) -> impl EsprParser<'a, &'a str> {
     move |input: &'a str| {
-        let (input, ()) = nom::combinator::not(f.clone())(input)?;
+        let (input, ()) =
+            nom::Parser::parse(&mut nom::combinator::not(f.clone()), input)?;
         Ok((input, ("", Vec::new())))
     }
 }
@@ -150,7 +164,8 @@ pub fn peek<'a>(
     f: impl EsprParser<'a, &'a str>,
 ) -> impl EsprParser<'a, &'a str> {
     move |input: &'a str| {
-        let (input, _) = nom::combinator::peek(f.clone())(input)?;
+        let (input, _) =
+            nom::Parser::parse(&mut nom::combinator::peek(f.clone()), input)?;
         Ok((input, ("", Vec::new())))
     }
 }
@@ -235,31 +250,27 @@ pub fn separated<'a, O>(
 ) -> impl EsprParser<'a, Vec<O>> {
     use nom::Parser;
     move |input| {
-        let comma_with_remark = nom::sequence::tuple((
-            spaces_or_remarks,
-            char(c),
-            spaces_or_remarks,
-        ))
-        .map(|(mut l, _, mut r)| {
-            l.append(&mut r);
-            l
-        });
-        nom::sequence::tuple((
+        let comma_with_remark = (spaces_or_remarks, char(c), spaces_or_remarks)
+            .map(|(mut l, _, mut r)| {
+                l.append(&mut r);
+                l
+            });
+        (
             f.clone(),
             nom::multi::many0(pair(comma_with_remark, f.clone())),
-        ))
-        .map(|((first, mut r0), pairs)| {
-            let mut output = vec![first];
-            let mut remarks = Vec::new();
-            remarks.append(&mut r0);
-            for (mut r1, (out, mut r2)) in pairs {
-                remarks.append(&mut r1);
-                remarks.append(&mut r2);
-                output.push(out);
-            }
-            (output, remarks)
-        })
-        .parse(input)
+        )
+            .map(|((first, mut r0), pairs)| {
+                let mut output = vec![first];
+                let mut remarks = Vec::new();
+                remarks.append(&mut r0);
+                for (mut r1, (out, mut r2)) in pairs {
+                    remarks.append(&mut r1);
+                    remarks.append(&mut r2);
+                    output.push(out);
+                }
+                (output, remarks)
+            })
+            .parse(input)
     }
 }
 
@@ -403,6 +414,41 @@ impl_alt!(F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11);
 mod tests {
     use crate::parser::basis;
     use nom::{Finish, Parser};
+
+    #[test]
+    fn mapped_parser_emits_remarks_and_honors_check_mode() {
+        use nom::{Check, Complete, Emit, OutputM};
+        use std::cell::Cell;
+
+        let calls = Cell::new(0);
+        let mut parser = super::EsprParser::map(
+            super::tuple((super::tag("A"), super::tag("B"))),
+            |(a, b)| {
+                calls.set(calls.get() + 1);
+                a.len() + b.len()
+            },
+        );
+        let source = "A (* first *) B (* second *) !";
+        assert_eq!(
+            parser
+                .process::<OutputM<Check, Emit, Complete>>(source)
+                .unwrap(),
+            ("!", ())
+        );
+        assert_eq!(calls.get(), 0);
+        let (rest, (value, remarks)) = parser.parse(source).unwrap();
+        assert_eq!(rest, "!");
+        assert_eq!(value, 2);
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            remarks
+                .iter()
+                .map(|r| r.remark.as_str())
+                .collect::<Vec<_>>(),
+            ["first", "second"]
+        );
+        assert!(parser.parse("A X").is_err());
+    }
 
     #[test]
     fn comma_separated() {

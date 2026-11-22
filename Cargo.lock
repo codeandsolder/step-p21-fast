@@ -609,6 +609,7 @@ dependencies = [
  "itertools",
  "maplit",
  "nom",
+ "nom-language",
  "proc-macro2",
  "quote",
  "syn 3.0.10",
