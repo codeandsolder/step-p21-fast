@@ -85,7 +85,7 @@ impl PartialOrd for Scope {
 macro_rules! add_scope {
     ($f:ident, $ty:ident) => {
         #[doc = stringify!(Add $ty scope)]
-        #[must_use]
+        #[must_use = "the returned scope includes the new named element"]
         pub fn $f(&self, name: &str) -> Self {
             self.pushed(ScopeType::$ty, name)
         }
@@ -113,12 +113,12 @@ impl Scope {
 
     add_scope!(r#type, Type);
 
-    #[must_use]
+    #[must_use = "the constructed root scope must be used"]
     pub const fn root() -> Self {
         Self(Vec::new())
     }
 
-    #[must_use]
+    #[must_use = "the returned scope includes the new element"]
     pub fn pushed(&self, ty: ScopeType, name: &str) -> Self {
         let mut new = self.clone();
         new.0.push((ty, name.to_string()));
@@ -128,7 +128,7 @@ impl Scope {
     /// Pop the last scope
     ///
     /// Returns `None` when `self` is root.
-    #[must_use]
+    #[must_use = "the returned scope excludes the last element without changing the original"]
     pub fn popped(&self) -> Option<Self> {
         let mut new = self.clone();
         let _current = new.0.pop()?;
@@ -185,7 +185,7 @@ impl Path {
 
     new_path!(r#type, Type);
 
-    #[must_use]
+    #[must_use = "the constructed scoped path must be used"]
     pub fn new(scope: &Scope, ty: ScopeType, name: &str) -> Self {
         Self {
             scope: scope.clone(),

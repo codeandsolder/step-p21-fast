@@ -127,7 +127,7 @@ pub const KEYWORDS: &[&str] = &[
     "xor",
 ];
 
-#[must_use]
+#[must_use = "the returned predicate identifies a reserved keyword"]
 pub fn is_reserved(input: &str) -> bool {
     KEYWORDS
         .iter()

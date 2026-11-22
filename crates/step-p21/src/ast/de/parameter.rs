@@ -72,7 +72,7 @@ pub struct SeqDeserializer<'p> {
 }
 
 impl<'p> SeqDeserializer<'p> {
-    #[must_use]
+    #[must_use = "the constructed sequence deserializer must be used"]
     pub const fn new(parameters: &'p [Parameter]) -> Self {
         SeqDeserializer {
             cursor: 0,

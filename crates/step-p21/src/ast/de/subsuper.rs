@@ -28,7 +28,7 @@ pub struct SubSuperRecordDeserializer<'record> {
 }
 
 impl<'record> SubSuperRecordDeserializer<'record> {
-    #[must_use]
+    #[must_use = "the constructed complex entity deserializer must be used"]
     pub const fn new(records: &'record [Record]) -> Self {
         Self {
             remaining: records,

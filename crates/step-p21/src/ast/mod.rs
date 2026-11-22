@@ -744,17 +744,17 @@ pub enum Parameter {
 }
 
 impl Parameter {
-    #[must_use]
+    #[must_use = "the constructed integer parameter must be used"]
     pub const fn integer(i: i64) -> Self {
         Self::Integer(i)
     }
 
-    #[must_use]
+    #[must_use = "the constructed real parameter must be used"]
     pub const fn real(x: f64) -> Self {
         Self::Real(x)
     }
 
-    #[must_use]
+    #[must_use = "the constructed string parameter must be used"]
     pub fn string(s: &str) -> Self {
         Self::String(s.to_string())
     }

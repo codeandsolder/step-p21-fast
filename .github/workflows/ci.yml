@@ -17,7 +17,7 @@ permissions:
 jobs:
   rust:
     name: Test, lint, docs, EXPRESS regression
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@2376b14a6bc8263ab77013bd744248f49384b2fa # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@1c9f5c8968c4caf8754c98ebeb0889d9e774b5ed # main
     with:
       rust-toolchain: "1.100.0"
       rust-components: "clippy rustfmt"
@@ -38,7 +38,7 @@ jobs:
 
   msrv:
     name: MSRV (release tags)
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@2376b14a6bc8263ab77013bd744248f49384b2fa # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@1c9f5c8968c4caf8754c98ebeb0889d9e774b5ed # main
     with:
       validation-tier: release
       rust-toolchain: "1.85.0"
@@ -52,6 +52,6 @@ jobs:
 
   strict-rust:
     name: Strict Rust
-    uses: codeandsolder/rust-skills2/.github/workflows/strict-rust.yml@82886ae85915af41ea90bf225bdffb3d9d359f69 # main
+    uses: codeandsolder/rust-skills2/.github/workflows/strict-rust.yml@f01e6b6b93a444e11600b90b5ca5ff42ec4206ee # main
     with:
       allow-test-panics: true

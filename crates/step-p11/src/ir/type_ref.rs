@@ -84,7 +84,7 @@ impl TypeRef {
     /// - a simple type,
     /// - a named type whose underlying type is simple, or,
     /// - a set or list of a type `x` such that `x.is_simple() == true`.
-    #[must_use]
+    #[must_use = "the predicate distinguishes simple type references"]
     pub fn is_simple(&self) -> bool {
         match self {
             Self::SimpleType(..) => true,

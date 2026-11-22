@@ -12,7 +12,7 @@ pub enum CratePrefix {
 }
 
 impl CratePrefix {
-    #[must_use]
+    #[must_use = "the generated crate path is needed for emitted references"]
     pub fn as_path(self) -> syn::Path {
         match self {
             Self::Internal => syn::parse_quote!(crate),
@@ -22,7 +22,7 @@ impl CratePrefix {
 }
 
 impl IR {
-    #[must_use]
+    #[must_use = "the generated schema tokens must be emitted"]
     pub fn to_token_stream(&self, prefix: CratePrefix) -> TokenStream {
         let schemas: Vec<_> = self
             .schemas
@@ -34,7 +34,7 @@ impl IR {
 }
 
 impl Schema {
-    #[must_use]
+    #[must_use = "the generated schema tokens must be emitted"]
     pub fn to_token_stream(&self, prefix: CratePrefix) -> TokenStream {
         let name = format_ident!("{}", self.name);
         let types = &self.types;

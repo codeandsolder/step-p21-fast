@@ -34,7 +34,7 @@ impl<'a, X, T> ExchangeParser<'a, X> for T where
 {
 }
 
-#[must_use]
+#[must_use = "the returned parser must be invoked to match the character"]
 pub fn char_<'a>(c: char) -> impl ExchangeParser<'a, char> {
     move |input| {
         let (input, c) = nom::character::complete::char(c).parse(input)?;
@@ -42,7 +42,7 @@ pub fn char_<'a>(c: char) -> impl ExchangeParser<'a, char> {
     }
 }
 
-#[must_use]
+#[must_use = "the returned parser must be invoked to match the tag"]
 pub fn tag_<'a>(name: &'static str) -> impl ExchangeParser<'a, &'a str> {
     move |input| {
         let (input, c) = nom::bytes::complete::tag(name).parse(input)?;

@@ -15,7 +15,7 @@ pub enum ConstraintExpr {
 
 impl ConstraintExpr {
     /// Check if `path` occurs in this expression
-    #[must_use]
+    #[must_use = "the returned predicate determines whether the constraint contains the path"]
     pub fn is_in(&self, path: &Path) -> bool {
         use ConstraintExpr::{And, AndOr, OneOf, Reference};
         match self {
@@ -26,7 +26,7 @@ impl ConstraintExpr {
         }
     }
 
-    #[must_use]
+    #[must_use = "the returned constraint contains the combined alternatives"]
     pub fn andor(mut self, rhs: Self) -> Self {
         self.andor_mut(rhs);
         self
@@ -260,7 +260,7 @@ impl Constraints {
         })
     }
 
-    #[must_use]
+    #[must_use = "the returned predicate determines whether the path declares a supertype"]
     pub fn is_supertype(&self, path: &Path) -> bool {
         self.instantiables.contains_key(path)
     }
