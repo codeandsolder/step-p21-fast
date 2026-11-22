@@ -56,7 +56,7 @@ pub fn logical_literal(input: &str) -> ParseResult<'_, Logical> {
 /// feeds require `Clone`, which the closure is not.
 fn identifier_continuation(
     input: &str,
-) -> nom::IResult<&str, &str, nom::error::VerboseError<&str>> {
+) -> nom::IResult<&str, &str, nom_language::error::VerboseError<&str>> {
     nom::bytes::complete::take_while1(|c: char| c.is_alphanumeric() || c == '_')(
         input,
     )
@@ -75,10 +75,10 @@ pub fn integer_literal(input: &str) -> ParseResult<'_, u64> {
     let (rest, (digits, remarks)) =
         remarked(nom::character::complete::digit1).parse(input)?;
     let number = digits.parse::<u64>().map_err(|_| {
-        nom::Err::Failure(nom::error::VerboseError {
+        nom::Err::Failure(nom_language::error::VerboseError {
             errors: vec![(
                 rest,
-                nom::error::VerboseErrorKind::Context(
+                nom_language::error::VerboseErrorKind::Context(
                     "integer-literal-overflow",
                 ),
             )],

@@ -4,7 +4,6 @@ use nom::{
     branch::alt,
     character::complete::{char, none_of, satisfy},
     multi::{many0, many1},
-    sequence::tuple,
 };
 
 /// 128 letter = `a` | `b` | `c` | `d` | `e` | `f` | `g` | `h` | `i` | `j` | `k`
@@ -50,9 +49,7 @@ pub fn hex_digit(input: &str) -> RawParseResult<'_, u8> {
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn octet(input: &str) -> RawParseResult<'_, u8> {
-    tuple((hex_digit, hex_digit))
-        .map(|(u, l)| u * 16 + l)
-        .parse(input)
+    (hex_digit, hex_digit).map(|(u, l)| u * 16 + l).parse(input)
 }
 
 /// 126 `encoded_character` = [octet] [octet] [octet] [octet] .
@@ -61,9 +58,7 @@ pub fn octet(input: &str) -> RawParseResult<'_, u8> {
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn encoded_character(input: &str) -> RawParseResult<'_, [u8; 4]> {
-    tuple((octet, octet, octet, octet))
-        .map(Into::into)
-        .parse(input)
+    (octet, octet, octet, octet).map(Into::into).parse(input)
 }
 
 /// 140 `encoded_string_literal` = `"` [`encoded_character`] {
@@ -74,7 +69,7 @@ pub fn encoded_character(input: &str) -> RawParseResult<'_, [u8; 4]> {
 /// EXPRESS grammar production.
 pub fn encoded_string_literal(input: &str) -> RawParseResult<'_, String> {
     nom::combinator::map_res(
-        tuple((char('"'), many1(encoded_character), char('"'))),
+        (char('"'), many1(encoded_character), char('"')),
         |(_openq, chars, _closeq): (_, Vec<[u8; 4]>, _)| {
             String::from_utf8(chars.into_iter().flatten().collect())
         },
@@ -89,7 +84,7 @@ pub fn encoded_string_literal(input: &str) -> RawParseResult<'_, String> {
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn simple_string_literal(input: &str) -> RawParseResult<'_, String> {
-    tuple((char('\''), many0(none_of("'")), char('\'')))
+    (char('\''), many0(none_of("'")), char('\''))
         .map(|(_open, chars, _close)| chars.into_iter().collect())
         .parse(input)
 }
@@ -101,22 +96,21 @@ pub fn simple_string_literal(input: &str) -> RawParseResult<'_, String> {
 /// Returns a parse error if the input does not satisfy the corresponding
 /// EXPRESS grammar production.
 pub fn simple_id(input: &str) -> RawParseResult<'_, String> {
-    if let Ok((input, id)) =
-        tuple((letter, many0(alt((letter, digit, char('_'))))))
-            .map(|(head, tail)| {
-                format!("{head}{}", tail.into_iter().collect::<String>())
-            })
-            .parse(input)
+    if let Ok((input, id)) = (letter, many0(alt((letter, digit, char('_')))))
+        .map(|(head, tail)| {
+            format!("{head}{}", tail.into_iter().collect::<String>())
+        })
+        .parse(input)
     {
         if is_reserved(id.as_str()) {
-            Err(nom::Err::Error(nom::error::VerboseError {
+            Err(nom::Err::Error(nom_language::error::VerboseError {
                 errors: Vec::new(),
             }))
         } else {
             Ok((input, id))
         }
     } else {
-        Err(nom::Err::Error(nom::error::VerboseError {
+        Err(nom::Err::Error(nom_language::error::VerboseError {
             errors: Vec::new(),
         }))
     }

@@ -22,8 +22,8 @@ categories    = ["science", "development-tools"]
 
 [dependencies]
 # For parser
-# Pinned to 7 deliberately: see the workspace manifest.
-nom = "7"
+nom.workspace = true
+nom-language.workspace = true
 
 # For Rust code generation
 syn = { workspace = true }
