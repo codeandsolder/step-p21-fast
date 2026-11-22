@@ -1,9 +1,7 @@
 use crate::{
     ast::Parameter,
     parser::{
-        combinator::{
-            ParseResult, char_, comma_separated, skip_ignorable, tuple_,
-        },
+        combinator::{ParseResult, char_, comma_separated, ignorable, tuple_},
         token::{enumeration, keyword, number, rhs_occurrence_name, string},
     },
 };
@@ -28,12 +26,12 @@ pub(super) fn parenthesized_parameters(
     input: &str,
 ) -> ParseResult<'_, Vec<Parameter>> {
     let (rest, _) = char_('(').parse(input)?;
-    let rest = skip_ignorable(rest);
+    let rest = ignorable(rest);
     if let Some(rest) = rest.strip_prefix(')') {
         return Ok((rest, Vec::new()));
     }
     let (rest, values) = parameter_list(rest)?;
-    let rest = skip_ignorable(rest);
+    let rest = ignorable(rest);
     let (rest, _) = char_(')').parse(rest)?;
     Ok((rest, values))
 }

@@ -12,12 +12,9 @@
 
 use nom::{
     IResult, Parser,
-    branch::alt,
     bytes::complete::tag,
-    character::complete::{multispace0, multispace1},
-    combinator::{opt, value},
+    combinator::opt,
     error::{ErrorKind, ParseError},
-    multi::many1,
 };
 use nom_language::error::VerboseError;
 
@@ -112,8 +109,15 @@ fn comment_body(content: &str) -> Option<(&str, &str)> {
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn separator(input: &str) -> ParseResult<'_, ()> {
-    let comment = many1((multispace0, comment_slice, multispace0)).map(|_| ());
-    alt((comment, value((), multispace1))).parse(input)
+    let rest = ignorable(input);
+    if rest.len() == input.len() {
+        Err(nom::Err::Error(ParseError::from_error_kind(
+            input,
+            ErrorKind::MultiSpace,
+        )))
+    } else {
+        Ok((rest, ()))
+    }
 }
 
 pub fn many0_<'a, O>(
@@ -148,12 +152,12 @@ fn repeat_after<'a, O>(
     let mut values = Vec::new();
     values.extend([first]);
     loop {
-        let start = skip_ignorable(input);
+        let start = ignorable(input);
         let start = if let Some(delimiter) = delimiter {
             let Some(after) = start.strip_prefix(delimiter) else {
                 return Ok((input, values));
             };
-            skip_ignorable(after)
+            ignorable(after)
         } else {
             start
         };
@@ -185,14 +189,11 @@ pub(super) fn skip_spaces(input: &str) -> &str {
     &input[skipped..]
 }
 
-/// Parse zero or more whitespace characters and complete comments.
-pub fn ignorable(input: &str) -> ParseResult<'_, ()> {
-    Ok((skip_ignorable(input), ()))
-}
-
-/// Whitespace and complete comments are ignorable; an unfinished comment
-/// remains for the following grammar production to report as invalid.
-pub(super) fn skip_ignorable(mut input: &str) -> &str {
+/// Skip zero or more whitespace characters and complete comments.
+/// An unfinished comment remains for the following grammar production
+/// to report as invalid.
+#[must_use = "returns the remaining input after skipping separators"]
+pub fn ignorable(mut input: &str) -> &str {
     loop {
         input = skip_spaces(input);
         let Some(content) = input.strip_prefix("/*") else {
@@ -237,23 +238,14 @@ pub trait Tuple<'a, O>: Clone {
     fn parse(&mut self, input: &'a str) -> ParseResult<'a, O>;
 }
 
-/// Build nested native nom tuples, separated by ignorable input.
-macro_rules! tuple_gen {
-    ($head:ident, $($tail:ident),*) => {
-        ($head.clone(), ignorable, tuple_gen!($($tail),*))
-    };
-    ($head:ident) => {
-        $head.clone()
-    };
-}
-
-/// Expand `match_gen!(o1, o2, o3)` to `(o1, _, (o2, _, o3))`
-macro_rules! match_gen {
-    ($head:ident, $($tail:ident),*) => {
-        ($head, _, match_gen!($($tail),*))
-    };
-    ($head:ident) => {
-        $head
+/// Parse a sequence of grammar productions, skipping separators between them.
+macro_rules! parse_tuple {
+    ($input:ident; $first:ident => $first_out:ident $(, $parser:ident => $output:ident)*) => {
+        let ($input, $first_out) = $first.clone().parse($input)?;
+        $(
+            let $input = ignorable($input);
+            let ($input, $output) = $parser.clone().parse($input)?;
+        )*
     };
 }
 
@@ -265,9 +257,8 @@ macro_rules! impl_tuple {
         {
             fn parse(&mut self, input: &'a str) -> ParseResult<'a, ($($O),*)> {
                 let ($($f),*) = self;
-                tuple_gen!($($f),*)
-                    .map(|match_gen!($($o),*)| ($($o),*))
-                    .parse(input)
+                parse_tuple!(input; $($f => $o),*);
+                Ok((input, ($($o),*)))
             }
         }
     };
@@ -327,6 +318,52 @@ mod tests {
     use super::*;
     use crate::parser::basic::digit;
     use nom::Finish;
+
+    #[test]
+    fn separator_scanner_matches_original_combinators() {
+        use nom::{
+            branch::alt,
+            bytes::complete::{tag, take_until},
+            character::complete::{multispace0, multispace1},
+            combinator::value,
+            multi::many1,
+        };
+
+        fn reference_comment(input: &str) -> ParseResult<'_, &str> {
+            let (rest, _) = tag("/*")(input)?;
+            let (rest, text) = take_until("*/").parse(rest)?;
+            let (rest, _) = tag("*/")(rest)?;
+            Ok((rest, text))
+        }
+
+        for prefix in
+            ["", " ", "\t\n\r", "/*é*/", "/*a*//*b*/", "  /* 🦀 */ \r\n"]
+        {
+            for suffix in [
+                "",
+                "A",
+                "/*unterminated",
+                "/* */ /*next*/é",
+                "/",
+                " //",
+                "\u{3000}",
+            ] {
+                let input = format!("{prefix}{suffix}");
+                let comments =
+                    many1((multispace0, reference_comment, multispace0))
+                        .map(|_| ());
+                let expected: ParseResult<'_, ()> =
+                    alt((comments, value((), multispace1))).parse(&input);
+                let actual = super::separator(&input);
+                match (actual, expected) {
+                    (Err(nom::Err::Error(_)), Err(nom::Err::Error(_))) => {}
+                    (actual, expected) => {
+                        assert_eq!(actual, expected, "{input:?}")
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn direct_character_match_agrees_with_nom_including_unicode() {
@@ -511,22 +548,22 @@ mod tests {
 
     #[test]
     fn ignorable() {
-        let (res, _) = super::ignorable("").finish().unwrap();
+        let res = super::ignorable("");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable(" ").finish().unwrap();
+        let res = super::ignorable(" ");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable("  ").finish().unwrap();
+        let res = super::ignorable("  ");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable("/* comment */").finish().unwrap();
+        let res = super::ignorable("/* comment */");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable("/* comment */ ").finish().unwrap();
+        let res = super::ignorable("/* comment */ ");
         assert_eq!(res, "");
 
-        let (res, _) = super::ignorable(" /* comment */ ").finish().unwrap();
+        let res = super::ignorable(" /* comment */ ");
         assert_eq!(res, "");
     }
 
@@ -542,7 +579,7 @@ mod tests {
             ("  /*unterminated", "/*unterminated"),
             ("/*valid*/  /*unterminated", "/*unterminated"),
         ] {
-            let (remaining, ()) = super::ignorable(input).unwrap();
+            let remaining = super::ignorable(input);
             assert_eq!(remaining, rest, "input: {input:?}");
         }
     }
@@ -569,7 +606,7 @@ mod tests {
             parser.parse("#1 #18446744073709551616"),
             Err(nom::Err::Failure(_))
         ));
-        let mut empty = super::many0_(super::ignorable);
+        let mut empty = super::many0_(super::tag_(""));
         assert!(matches!(empty.parse("X"), Err(nom::Err::Error(_))));
     }
 

@@ -39,7 +39,7 @@ use crate::{
     ast,
     error::{Error, Result, TokenizeFailed},
 };
-use nom::{Finish, Parser, sequence::terminated};
+use nom::Finish;
 
 /// Parse a HEADER section and return the unconsumed input.
 ///
@@ -82,11 +82,10 @@ pub fn parse_header(input: &str) -> Result<(&str, Vec<ast::Record>)> {
 /// Returns an error if the STEP input is malformed or cannot be completely
 /// parsed.
 pub fn parse(input: &str) -> Result<ast::Exchange> {
-    let (remaining, exchange) =
-        terminated(exchange::exchange_file, combinator::ignorable)
-            .parse(input)
-            .finish()
-            .map_err(|error| TokenizeFailed::new(input, error))?;
+    let (remaining, exchange) = exchange::exchange_file(input)
+        .finish()
+        .map_err(|error| TokenizeFailed::new(input, error))?;
+    let remaining = combinator::ignorable(remaining);
     if remaining.is_empty() {
         Ok(exchange)
     } else {

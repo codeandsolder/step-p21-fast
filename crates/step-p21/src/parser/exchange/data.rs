@@ -2,7 +2,7 @@ use crate::{
     ast::{DataSection, EntityInstance, Parameter, Record, SubSuperRecord},
     parser::{
         combinator::{
-            ParseResult, char_, many0_, opt_, skip_ignorable, tag_, tuple_,
+            ParseResult, char_, ignorable, many0_, opt_, tag_, tuple_,
         },
         exchange::{parameter::parenthesized_parameters, parameter_list},
         token::{entity_instance_name, keyword},
@@ -60,7 +60,7 @@ pub fn entity_instance(input: &str) -> ParseResult<'_, EntityInstance> {
 fn entity_instance_prefix(input: &str) -> ParseResult<'_, u64> {
     let (rest, (id, _eq)) =
         tuple_((entity_instance_name, char_('='))).parse(input)?;
-    let rest = skip_ignorable(rest);
+    let rest = ignorable(rest);
     Ok((rest, id))
 }
 
