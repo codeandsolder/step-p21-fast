@@ -18,6 +18,11 @@ use nom::{
     multi::{many0, many1},
 };
 
+use std::simd::{
+    Simd,
+    cmp::{SimdPartialEq, SimdPartialOrd},
+};
+
 /// sign = `+` | `-` .
 ///
 /// # Errors
@@ -309,11 +314,33 @@ pub fn standard_keyword(input: &str) -> ParseResult<'_, String> {
 /// Return the source span so both keyword forms allocate exactly once.
 fn standard_keyword_span(input: &str) -> ParseResult<'_, &str> {
     let (rest, _) = upper(input)?;
-    let (rest, _) = nom::bytes::complete::take_while(
-        |c: char| matches!(c, 'A'..='Z' | '_' | '0'..='9'),
-    )
-    .parse(rest)?;
+    let rest = &rest[keyword_tail_len(rest.as_bytes())..];
     Ok((rest, &input[..input.len() - rest.len()]))
+}
+
+/// Length of the initial ASCII keyword continuation. Any non-ASCII byte
+/// terminates the span, so the result is also a UTF-8 character boundary.
+fn keyword_tail_len(input: &[u8]) -> usize {
+    const LANES: usize = 16;
+    let (chunks, tail) = input.as_chunks::<LANES>();
+    for (index, &chunk) in chunks.iter().enumerate() {
+        let bytes = Simd::from_array(chunk);
+        // SIMD integer subtraction wraps. Subtracting the lower endpoint
+        // converts each closed ASCII range into one unsigned comparison.
+        let uppercase =
+            (bytes - Simd::splat(b'A')).simd_le(Simd::splat(b'Z' - b'A'));
+        let digits =
+            (bytes - Simd::splat(b'0')).simd_le(Simd::splat(b'9' - b'0'));
+        let valid = uppercase | digits | bytes.simd_eq(Simd::splat(b'_'));
+        if let Some(lane) = (!valid).first_set() {
+            return index * LANES + lane;
+        }
+    }
+    input.len() - tail.len()
+        + tail
+            .iter()
+            .position(|&byte| !matches!(byte, b'A'..=b'Z' | b'0'..=b'9' | b'_'))
+            .unwrap_or(tail.len())
 }
 
 /// `user_defined_keyword` = `!` [upper] { [upper] | [digit] } .
@@ -360,6 +387,58 @@ pub fn signature_content(input: &str) -> ParseResult<'_, String> {
 #[cfg(test)]
 mod tests {
     use nom::Finish;
+
+    #[test]
+    fn keyword_scan_matches_scalar_for_every_byte_and_lane() {
+        // Exercise unaligned slice starts, multiple complete vectors and
+        // every possible tail length; the oracle is scalar byte matching.
+        for offset in 0..16 {
+            let mut storage = [b'A'; 64];
+            let input = &mut storage[offset..offset + 49];
+            for length in 0..=input.len() {
+                assert_eq!(super::keyword_tail_len(&input[..length]), length);
+                if let Some((last, _)) = input[..length].split_last_mut() {
+                    *last = b'!';
+                    assert_eq!(
+                        super::keyword_tail_len(&input[..length]),
+                        length - 1
+                    );
+                    input[length - 1] = b'A';
+                }
+            }
+            for position in 0..input.len() {
+                for byte in u8::MIN..=u8::MAX {
+                    input[position] = byte;
+                    let expected = input
+                        .iter()
+                        .position(|byte| !matches!(byte, b'A'..=b'Z' | b'0'..=b'9' | b'_'))
+                        .unwrap_or(input.len());
+                    assert_eq!(super::keyword_tail_len(input), expected);
+                }
+                input[position] = b'A';
+            }
+        }
+    }
+
+    #[test]
+    fn keyword_scan_preserves_utf8_boundaries_and_initial_character_rule() {
+        for length in 1..65 {
+            let keyword = "A_9".repeat(length);
+            let input = format!("{keyword}é");
+            assert_eq!(
+                super::standard_keyword(&input),
+                Ok(("é", keyword.clone()))
+            );
+            let extension = format!("!{input}");
+            assert_eq!(
+                super::user_defined_keyword(&extension),
+                Ok(("é", format!("!{keyword}")))
+            );
+        }
+        for input in ["", "9A", "a", "é", "!9A"] {
+            assert!(super::keyword(input).is_err(), "{input:?}");
+        }
+    }
 
     #[test]
     fn real() {

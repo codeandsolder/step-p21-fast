@@ -111,6 +111,7 @@
 //!
 //! Not supported yet. See [tracking issue](https://github.com/ricosjp/ruststep/issues/215).
 
+#![feature(portable_simd)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
 // Give derive expansions the same absolute path in the library itself and
