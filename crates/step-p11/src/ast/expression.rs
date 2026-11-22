@@ -53,7 +53,7 @@ pub enum Expression {
 
 macro_rules! impl_relation_op_expression {
     ($f:ident, $op:path) => {
-        #[must_use]
+        #[must_use = "the returned relation expression contains both operands"]
         pub fn $f(self, other: Self) -> Self {
             Expression::Relation {
                 op: $op,
@@ -66,7 +66,7 @@ macro_rules! impl_relation_op_expression {
 
 macro_rules! impl_binary_op_expression {
     ($f:ident, $op:path) => {
-        #[must_use]
+        #[must_use = "the returned binary expression contains both operands"]
         pub fn $f(self, other: Self) -> Self {
             Expression::Binary {
                 op: $op,
@@ -101,13 +101,13 @@ impl Expression {
     impl_binary_op_expression!(xor, BinaryOperator::Xor);
 
     /// `SELF` constant
-    #[must_use]
+    #[must_use = "the constructed SELF expression must be used"]
     pub const fn self_() -> Self {
         Self::self_qualified(Vec::new())
     }
 
     /// `SELF` constant with qualifiers
-    #[must_use]
+    #[must_use = "the qualified SELF expression must be used"]
     pub const fn self_qualified(qualifiers: Vec<Qualifier>) -> Self {
         Self::QualifiableFactor {
             factor: QualifiableFactor::BuiltInConstant(BuiltInConstant::Self_),
@@ -116,7 +116,7 @@ impl Expression {
     }
 
     /// `?` constant
-    #[must_use]
+    #[must_use = "the constructed indeterminate value must be used"]
     pub const fn indeterminate() -> Self {
         Self::QualifiableFactor {
             factor: QualifiableFactor::BuiltInConstant(
@@ -127,7 +127,7 @@ impl Expression {
     }
 
     /// Real value literal
-    #[must_use]
+    #[must_use = "the constructed real literal expression must be used"]
     pub const fn real(value: f64) -> Self {
         Self::Literal(Literal::Real(value))
     }

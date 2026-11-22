@@ -134,7 +134,7 @@ where
     }
 }
 
-#[must_use]
+#[must_use = "the returned parser must be invoked to match the tag"]
 pub fn tag<'a>(tag_str: &'static str) -> impl EsprParser<'a, &'a str> {
     move |input: &'a str| {
         let (input, tag) = nom::bytes::complete::tag_no_case(tag_str)(input)?;
@@ -142,7 +142,7 @@ pub fn tag<'a>(tag_str: &'static str) -> impl EsprParser<'a, &'a str> {
     }
 }
 
-#[must_use]
+#[must_use = "the returned parser must be invoked to match the input"]
 pub fn is_not<'a>(pattern: &'static str) -> impl EsprParser<'a, &'a str> {
     move |input: &'a str| {
         let (input, tag) = nom::bytes::complete::is_not(pattern)(input)?;
@@ -170,7 +170,7 @@ pub fn peek<'a>(
     }
 }
 
-#[must_use]
+#[must_use = "the returned parser must be invoked to match the character"]
 pub fn char<'a>(c: char) -> impl EsprParser<'a, char> {
     move |input| {
         let (input, c) = nom::character::complete::char(c)(input)?;

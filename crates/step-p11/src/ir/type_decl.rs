@@ -44,7 +44,7 @@ pub enum TypeDecl {
 }
 
 impl TypeDecl {
-    #[must_use]
+    #[must_use = "the returned identifier names the type declaration"]
     pub fn id(&self) -> &str {
         match self {
             Self::Simple(e) => &e.id,

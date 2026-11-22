@@ -28,7 +28,7 @@ pub struct Entity {
 crate::derive_ast_component!(Entity, entity_decl);
 
 impl Entity {
-    #[must_use]
+    #[must_use = "the declaration predicate must be checked before classifying the entity"]
     pub const fn has_supertype_decl(&self) -> bool {
         match &self.constraint {
             Some(

@@ -33,7 +33,7 @@ impl<'de> de::Deserializer<'de> for &Record {
             if let Parameter::List(ref parameters) = self.parameter {
                 return visitor.visit_map(RecordStructDeserializer::new(
                     fields, parameters,
-                ));
+                )?);
             }
         }
         Self::deserialize_any(self, visitor)
@@ -66,7 +66,7 @@ impl<'de> de::Deserializer<'de> for RecordDeserializer<'_> {
 }
 
 impl<'record> RecordDeserializer<'record> {
-    #[must_use]
+    #[must_use = "the constructed record deserializer must be used"]
     pub const fn new(key: &'record str, value: &'record Parameter) -> Self {
         RecordDeserializer {
             key: Some(key),
@@ -130,17 +130,29 @@ pub struct RecordStructDeserializer<'a> {
 }
 
 impl<'a> RecordStructDeserializer<'a> {
-    #[must_use]
-    pub const fn new(
+    /// Construct a positional map only when its entire declared shape matches.
+    ///
+    /// # Errors
+    /// Returns an error if the number of parameters differs from the number of
+    /// fields.
+    pub fn new(
         fields: &'a [&'static str],
         parameters: &'a [Parameter],
-    ) -> Self {
-        Self {
+    ) -> Result<Self, crate::error::Error> {
+        // Validate before handing control to a visitor. It may return
+        // successfully without consuming every field.
+        if fields.len() != parameters.len() {
+            return Err(de::Error::invalid_length(
+                parameters.len(),
+                &"the exact STEP struct field count",
+            ));
+        }
+        Ok(Self {
             cursor: 0,
             fields,
             parameters,
             awaiting_value: false,
-        }
+        })
     }
 }
 
@@ -177,12 +189,6 @@ impl<'de> de::MapAccess<'de> for RecordStructDeserializer<'_> {
             ));
         }
         let Some(field) = self.fields.get(self.cursor) else {
-            if self.cursor != self.parameters.len() {
-                return Err(de::Error::invalid_length(
-                    self.parameters.len(),
-                    &"the exact STEP struct field count",
-                ));
-            }
             return Ok(None);
         };
         self.awaiting_value = true;
@@ -201,13 +207,9 @@ impl<'de> de::MapAccess<'de> for RecordStructDeserializer<'_> {
             ));
         }
         self.awaiting_value = false;
-        let Some(value) = self.parameters.get(self.cursor) else {
-            return Err(de::Error::invalid_length(
-                self.cursor,
-                &"a STEP struct field value",
-            ));
-        };
-        let value = seed.deserialize(value)?;
+        // Construction enforces equal lengths, and a pending key implies
+        // the cursor addresses an existing field.
+        let value = seed.deserialize(&self.parameters[self.cursor])?;
         self.cursor += 1;
         Ok(value)
     }
@@ -249,13 +251,54 @@ mod tests {
     }
 
     #[test]
-    fn truncated_struct_fields_return_an_error_instead_of_panicking() {
-        let fields = ["x", "y"];
-        let parameters = [Parameter::Integer(1)];
-        let mut access = RecordStructDeserializer::new(&fields, &parameters);
-        assert_eq!(access.next_key::<String>().unwrap(), Some("x".to_owned()));
-        assert_eq!(access.next_value::<i64>().unwrap(), 1);
-        assert_eq!(access.next_key::<String>().unwrap(), Some("y".to_owned()));
-        assert!(access.next_value::<i64>().is_err());
+    fn malformed_struct_shapes_fail_before_the_visitor_runs() {
+        use serde::de::{Deserializer, Visitor};
+        use std::fmt;
+
+        struct EarlyReturn;
+
+        impl<'de> Visitor<'de> for EarlyReturn {
+            type Value = ();
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a STEP struct with two fields")
+            }
+
+            fn visit_map<M: MapAccess<'de>>(
+                self,
+                _map: M,
+            ) -> Result<(), M::Error> {
+                Ok(())
+            }
+        }
+
+        for input in ["A(1)", "A(1, 2, 3)"] {
+            let record: Record = input.parse().unwrap();
+            assert!(
+                (&record)
+                    .deserialize_struct("A", &["x", "y"], EarlyReturn)
+                    .is_err()
+            );
+        }
+        let record: Record = "A(1, 2)".parse().unwrap();
+        assert!(
+            (&record)
+                .deserialize_struct("A", &["x", "y"], EarlyReturn)
+                .is_ok()
+        );
+        assert!(
+            RecordStructDeserializer::new(
+                &["x", "y"],
+                &[Parameter::Integer(1)]
+            )
+            .is_err()
+        );
+        assert!(
+            RecordStructDeserializer::new(
+                &["x"],
+                &[Parameter::Integer(1), Parameter::Integer(2)]
+            )
+            .is_err()
+        );
     }
 }

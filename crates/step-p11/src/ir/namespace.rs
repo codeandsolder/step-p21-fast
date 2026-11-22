@@ -44,7 +44,7 @@ impl std::ops::Index<&Scope> for Namespace<'_> {
 }
 
 impl<'st> Namespace<'st> {
-    #[must_use]
+    #[must_use = "the constructed namespace is needed to resolve names"]
     pub fn new(st: &'st SyntaxTree) -> Self {
         let mut names = HashMap::new();
         let mut ast = Vec::new();
@@ -73,13 +73,13 @@ impl<'st> Namespace<'st> {
         Namespace { names, ast }
     }
 
-    #[must_use]
+    #[must_use = "the returned predicate describes namespace emptiness"]
     pub fn is_empty(&self) -> bool {
         self.ast.is_empty()
     }
 
     /// Size of indexed AST
-    #[must_use]
+    #[must_use = "the returned count describes namespace size"]
     pub fn len(&self) -> usize {
         self.ast.len()
     }

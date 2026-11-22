@@ -62,7 +62,7 @@ impl Ord for PartialComplexEntity {
 }
 
 impl PartialComplexEntity {
-    #[must_use]
+    #[must_use = "the constructed partial entity must be used"]
     pub fn new(indices: &[usize]) -> Self {
         Self {
             indices: indices.iter().copied().dedup().collect(),
@@ -70,7 +70,7 @@ impl PartialComplexEntity {
     }
 
     /// Restore Path from namespace index
-    #[must_use]
+    #[must_use = "the resolved namespace paths are returned rather than stored"]
     pub fn as_path(&self, ns: &Namespace) -> Vec<Path> {
         self.indices
             .iter()
@@ -266,7 +266,7 @@ pub struct Instantiables {
 }
 
 impl Instantiables {
-    #[must_use]
+    #[must_use = "the constructed instantiable set must be used"]
     pub fn new(pces: &[PartialComplexEntity]) -> Self {
         Self {
             parts: pces.to_vec(),
@@ -274,7 +274,7 @@ impl Instantiables {
     }
 
     /// Create from single index
-    #[must_use]
+    #[must_use = "the constructed singleton instantiable set must be used"]
     pub fn single(index: usize) -> Self {
         Self {
             parts: vec![PartialComplexEntity::new(&[index])],
@@ -282,7 +282,7 @@ impl Instantiables {
     }
 
     /// ONEOF(A, B, C) -> [A, B, C]
-    #[must_use]
+    #[must_use = "the returned set contains the alternative combinations"]
     pub fn oneof(parts: Vec<Self>) -> Self {
         let mut is = Self::default();
         for p in parts {
@@ -292,7 +292,7 @@ impl Instantiables {
     }
 
     /// A AND B AND C -> [A & B & C]
-    #[must_use]
+    #[must_use = "the returned set contains the conjunction combinations"]
     pub fn and(terms: Vec<Self>) -> Self {
         terms
             .into_iter()
@@ -301,7 +301,7 @@ impl Instantiables {
     }
 
     /// A ANDOR B ANDOR C -> [A, B, C, A & B, B & C, A & C, A & B & C]
-    #[must_use]
+    #[must_use = "the returned set contains the nonempty factor combinations"]
     pub fn andor(factors: &[Self]) -> Self {
         // Maintain the set of all nonempty combinations incrementally.
         // This avoids bit-shift overflow when there are more factors than
@@ -353,7 +353,7 @@ impl Instantiables {
     }
 
     /// Restore Path from namespace index
-    #[must_use]
+    #[must_use = "the resolved paths are returned rather than stored"]
     pub fn as_path(&self, ns: &Namespace) -> Vec<Vec<Path>> {
         self.parts.iter().map(|pce| pce.as_path(ns)).collect()
     }

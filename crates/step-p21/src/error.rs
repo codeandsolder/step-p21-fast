@@ -89,7 +89,7 @@ impl fmt::Display for TokenizeFailed {
 impl std::error::Error for TokenizeFailed {}
 
 impl TokenizeFailed {
-    #[must_use]
+    #[must_use = "the constructed parse diagnostic must be reported or returned"]
     pub fn new(
         input: &str,
         err: nom_language::error::VerboseError<&str>,
