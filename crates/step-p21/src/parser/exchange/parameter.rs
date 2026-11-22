@@ -1,7 +1,9 @@
 use crate::{
     ast::Parameter,
     parser::{
-        combinator::{ParseResult, char_, comma_separated, ignorable, tuple_},
+        combinator::{
+            ParseResult, char_, comma_separated, parenthesized_list, tuple_,
+        },
         token::{enumeration, keyword, number, rhs_occurrence_name, string},
     },
 };
@@ -17,23 +19,9 @@ use nom::{
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn list(input: &str) -> ParseResult<'_, Parameter> {
-    parenthesized_parameters(input)
-        .map(|(rest, values)| (rest, Parameter::List(values)))
-}
-
-/// Shared parenthesized parameter list, including the empty aggregate.
-pub(super) fn parenthesized_parameters(
-    input: &str,
-) -> ParseResult<'_, Vec<Parameter>> {
-    let (rest, _) = char_('(').parse(input)?;
-    let rest = ignorable(rest);
-    if let Some(rest) = rest.strip_prefix(')') {
-        return Ok((rest, Vec::new()));
-    }
-    let (rest, values) = parameter_list(rest)?;
-    let rest = ignorable(rest);
-    let (rest, _) = char_(')').parse(rest)?;
-    Ok((rest, values))
+    parenthesized_list(parameter)
+        .map(Parameter::List)
+        .parse(input)
 }
 
 /// parameter = [`typed_parameter`] | [`untyped_parameter`] |

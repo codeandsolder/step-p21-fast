@@ -2,9 +2,10 @@ use crate::{
     ast::{DataSection, EntityInstance, Parameter, Record, SubSuperRecord},
     parser::{
         combinator::{
-            ParseResult, char_, ignorable, many0_, opt_, tag_, tuple_,
+            ParseResult, char_, ignorable, many0_, opt_, parenthesized_list,
+            tag_, tuple_,
         },
-        exchange::{parameter::parenthesized_parameters, parameter_list},
+        exchange::{parameter, parameter_list},
         token::{entity_instance_name, keyword},
     },
 };
@@ -107,7 +108,7 @@ fn complex_entity_body(
 /// Returns a parse error when the input does not satisfy the corresponding STEP
 /// grammar production.
 pub fn simple_record(input: &str) -> ParseResult<'_, Record> {
-    tuple_((keyword, parenthesized_parameters))
+    tuple_((keyword, parenthesized_list(parameter)))
         .map(|(name, parameters)| Record {
             name,
             parameter: Parameter::List(parameters),

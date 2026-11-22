@@ -234,6 +234,23 @@ pub fn comma_separated<'a, O>(
     separated(',', f)
 }
 
+/// Parse a comma-separated list enclosed in parentheses, including empty
+/// lists. Separators around delimiters follow the ordinary STEP grammar.
+pub(super) fn parenthesized_list<'a, O>(
+    element: impl ExchangeParser<'a, O>,
+) -> impl ExchangeParser<'a, Vec<O>> {
+    move |input| {
+        let (rest, _) = match_char(input, '(')?;
+        let rest = ignorable(rest);
+        if let Some(rest) = rest.strip_prefix(')') {
+            return Ok((rest, Vec::new()));
+        }
+        let (rest, values) = comma_separated(element.clone()).parse(rest)?;
+        let (rest, _) = match_char(ignorable(rest), ')')?;
+        Ok((rest, values))
+    }
+}
+
 /// Sequence of separated tokens
 pub fn tuple_<'a, O, List: Tuple<'a, O>>(
     mut l: List,
