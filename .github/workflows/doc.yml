@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
@@ -21,3 +22,13 @@ jobs:
       - uses: gaurav-nelson/github-action-markdown-link-check@5c5dfc0ac2e225883c0e5f03a85311ec2830d368 # v1
         with:
           config-file: markdown-link-check.json
+
+  merge-gate:
+    name: Documentation merge gate
+    if: ${{ always() }}
+    needs: [markdown-link-check]
+    uses: codeandsolder/ci-workflows/.github/workflows/merge-gate.yml@b418cf305344819418335c93f9b3f26f7cc5d17c # main
+    with:
+      needs-json: ${{ toJSON(needs) }}
+      expected-results: |
+        [["markdown-link-check","success"]]
