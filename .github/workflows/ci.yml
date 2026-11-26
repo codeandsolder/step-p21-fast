@@ -5,6 +5,7 @@ on:
     branches: [master]
     tags: ["*"]
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -35,3 +36,13 @@ jobs:
     with:
       allow-test-panics: true
       cargo-args: "--locked --workspace --all-targets --all-features"
+
+  merge-gate:
+    name: Rust CI merge gate
+    if: ${{ always() }}
+    needs: [rust, strict-rust]
+    uses: codeandsolder/ci-workflows/.github/workflows/merge-gate.yml@b418cf305344819418335c93f9b3f26f7cc5d17c # main
+    with:
+      needs-json: ${{ toJSON(needs) }}
+      expected-results: |
+        [["rust","success"],["strict-rust","success"]]
