@@ -18,7 +18,7 @@ permissions:
 jobs:
   rust:
     name: Test, lint, docs, EXPRESS regression
-    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@2bf1fa8216c6b09836ea837d663ca616d0ec6427 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/rust-sccache.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
     with:
       rust-components: "clippy rustfmt"
       command: |
@@ -41,7 +41,7 @@ jobs:
     name: Rust CI merge gate
     if: ${{ always() }}
     needs: [rust, strict-rust]
-    uses: codeandsolder/ci-workflows/.github/workflows/merge-gate.yml@2bf1fa8216c6b09836ea837d663ca616d0ec6427 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/merge-gate.yml@4c7fc62a9f9ec37aaa7c155d263cd5025e446a53 # main
     with:
       needs-json: ${{ toJSON(needs) }}
       expected-results: |
