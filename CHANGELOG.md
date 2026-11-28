@@ -1,5 +1,7 @@
 # Unreleased (codeandsolder/step-p21-fast)
 
+- Generate span-aware diagnostics directly with syn errors and resolve dependency aliases once per derive invocation; remove proc-macro-error2.
+
 - Use fixed-size boxed strings for typed parameter keywords and constant
   occurrence names, reducing the memory footprint of every AST parameter.
   These public payloads are now `Box<str>`, not growable `String` values.
