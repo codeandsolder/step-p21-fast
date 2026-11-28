@@ -42,7 +42,6 @@ nom = "8"
 # nom 8 moved `VerboseError` and `convert_error` out of the core crate.
 nom-language = "0.1"
 proc-macro-crate = "3"
-proc-macro-error2 = "2"
 proc-macro2 = "1"
 quote = "1"
 serde = { version = "1", features = ["derive"] }

@@ -1,60 +1,30 @@
 use inflector::Inflector;
-use proc_macro_error2::{OptionExt, abort, abort_call_site};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
-use crate::common::step_p21_crate;
+use crate::common::CratePaths;
 
-pub fn derive_table_init(ast: &syn::DeriveInput) -> TokenStream2 {
+pub fn derive_table_init(
+    ast: &syn::DeriveInput,
+    paths: &CratePaths,
+) -> syn::Result<TokenStream2> {
     let ident = &ast.ident;
     let syn::Data::Struct(st) = &ast.data else {
-        abort_call_site!("TableInit only supports structs")
+        return Err(syn::Error::new(
+            ident.span(),
+            "TableInit only supports structs",
+        ));
     };
 
-    let dispatch = match &st.fields {
-        syn::Fields::Named(fields) => {
-            let arms = fields.named.iter().map(|field| {
-                let member = field.ident.as_ref().expect_or_abort("named table field");
-                let name = member.to_string().to_screaming_snake_case();
-                quote! { #name => { insert_record(&mut self.#member, *id, record)?; true }, }
-            });
-            quote! {
-                match record.name.as_str() {
-                    #(#arms)*
-                    _ => false,
-                }
-            }
-        }
-        syn::Fields::Unnamed(fields) => {
-            let step_p21 = step_p21_crate();
-            let entries = fields.unnamed.iter().enumerate().map(|(index, field)| {
-                let member = syn::Index::from(index);
-                let holder = holder_type(&field.ty);
-                quote! {
-                    if !matched && record.name == <#holder as #step_p21::tables::Holder>::name() {
-                        insert_record(&mut self.#member, *id, record)?;
-                        matched = true;
-                    }
-                }
-            });
-            // Associated Holder::name() gives the EXPRESS entity name
-            // regardless of how the table field type was spelled.
-            quote! {
-                let mut matched = false;
-                #(#entries)*
-                matched
-            }
-        }
-        syn::Fields::Unit => abort_call_site!("Unit struct is not supported."),
-    };
+    let dispatch = table_dispatch(&st.fields, paths)?;
 
     // A Part 21 entity instance ID is unique across the entire exchange
     // structure, not just within a map for one EXPRESS entity type. Recover
     // existing IDs when appending a later DATA section, too.
-    let members = table_members(&st.fields);
+    let members = table_members(&st.fields)?;
 
-    let step_p21 = step_p21_crate();
-    quote! {
+    let step_p21 = &paths.step;
+    Ok(quote! {
         #[automatically_derived]
         impl #step_p21::tables::TableInit for #ident {
             fn append_data_section(
@@ -112,48 +82,111 @@ pub fn derive_table_init(ast: &syn::DeriveInput) -> TokenStream2 {
                 Self::from_data_section(&data_sec)
             }
         }
-    }
+    })
+}
+
+fn table_dispatch(
+    fields: &syn::Fields,
+    paths: &CratePaths,
+) -> syn::Result<TokenStream2> {
+    Ok(match fields {
+        syn::Fields::Named(fields) => {
+            let arms = fields.named.iter().map(|field| {
+                let member = field.ident.as_ref().ok_or_else(|| syn::Error::new_spanned(field, "named table field"))?;
+                let name = member.to_string().to_screaming_snake_case();
+                Ok(quote! { #name => { insert_record(&mut self.#member, *id, record)?; true }, })
+            }).collect::<syn::Result<Vec<_>>>()?;
+            quote! {
+                match record.name.as_str() {
+                    #(#arms)*
+                    _ => false,
+                }
+            }
+        }
+        syn::Fields::Unnamed(fields) => {
+            let step_p21 = &paths.step;
+            let entries = fields.unnamed.iter().enumerate().map(|(index, field)| {
+                let member = syn::Index::from(index);
+                let holder = holder_type(&field.ty)?;
+                Ok(quote! {
+                    if !matched && record.name == <#holder as #step_p21::tables::Holder>::name() {
+                        insert_record(&mut self.#member, *id, record)?;
+                        matched = true;
+                    }
+                })
+            }).collect::<syn::Result<Vec<_>>>()?;
+            // Associated Holder::name() gives the EXPRESS entity name
+            // regardless of how the table field type was spelled.
+            quote! {
+                let mut matched = false;
+                #(#entries)*
+                matched
+            }
+        }
+        syn::Fields::Unit => {
+            return Err(syn::Error::new_spanned(
+                fields,
+                "Unit struct is not supported.",
+            ));
+        }
+    })
 }
 
 /// Enumerate the storage maps independently from their dispatch rules.
-fn table_members(fields: &syn::Fields) -> Vec<syn::Member> {
+fn table_members(fields: &syn::Fields) -> syn::Result<Vec<syn::Member>> {
     match fields {
         syn::Fields::Named(fields) => fields
             .named
             .iter()
             .map(|field| {
-                syn::Member::Named(
-                    field.ident.clone().expect_or_abort("named table field"),
-                )
+                field.ident.clone().map(syn::Member::Named).ok_or_else(|| {
+                    syn::Error::new_spanned(field, "named table field")
+                })
             })
             .collect(),
         syn::Fields::Unnamed(fields) => (0..fields.unnamed.len())
-            .map(|index| syn::Member::Unnamed(syn::Index::from(index)))
+            .map(|index| Ok(syn::Member::Unnamed(syn::Index::from(index))))
             .collect(),
-        syn::Fields::Unit => abort_call_site!("Unit struct is not supported."),
+        syn::Fields::Unit => Err(syn::Error::new_spanned(
+            fields,
+            "Unit struct is not supported.",
+        )),
     }
 }
 
 /// A positional table field has a concrete `HashMap<u64, Holder, S>`
 /// type; retain arbitrary hasher support while extracting its Holder type.
 /// Avoid reconstructing entity names from Rust type spelling.
-fn holder_type(ty: &syn::Type) -> &syn::Type {
+fn holder_type(ty: &syn::Type) -> syn::Result<&syn::Type> {
     let syn::Type::Path(path) = ty else {
-        abort!(ty, "tuple TableInit fields must be HashMap<u64, Holder>")
+        return Err(syn::Error::new_spanned(
+            ty,
+            "tuple TableInit fields must be HashMap<u64, Holder>",
+        ));
     };
-    let segment = path.path.segments.last().expect_or_abort("empty type path");
+    let segment = path
+        .path
+        .segments
+        .last()
+        .ok_or_else(|| syn::Error::new_spanned(ty, "empty type path"))?;
     if segment.ident != "HashMap" {
-        abort!(
-            segment.ident,
-            "tuple TableInit fields must be HashMap<u64, Holder>"
-        )
+        return Err(syn::Error::new_spanned(
+            &segment.ident,
+            "tuple TableInit fields must be HashMap<u64, Holder>",
+        ));
     }
     let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
-        abort!(segment, "HashMap must have a key and holder value type")
+        return Err(syn::Error::new_spanned(
+            segment,
+            "HashMap must have a key and holder value type",
+        ));
     };
     let Some(syn::GenericArgument::Type(value)) = args.args.iter().nth(1)
     else {
-        abort!(segment, "HashMap must have a holder value type")
+        return Err(syn::Error::new_spanned(
+            segment,
+            "HashMap must have a holder value type",
+        ));
     };
-    value
+    Ok(value)
 }

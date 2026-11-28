@@ -21,23 +21,18 @@
 //! - This crate does not depend on `step_p11` explicitly.
 
 use proc_macro::TokenStream;
-use proc_macro_error2::{abort_call_site, proc_macro_error};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 mod common;
-mod entity;
 mod field_type;
 mod holder_attr;
 mod holder_codegen;
 mod select;
+mod struct_codegen;
 mod table_init;
-mod type_decl;
 
-use common::{
-    as_holder_ident, as_holder_path, as_visitor_ident, itertools_crate,
-    serde_crate, step_p21_crate,
-};
+use common::{CratePaths, as_holder_ident, as_holder_path, as_visitor_ident};
 use field_type::FieldType;
 use holder_attr::HolderAttr;
 use table_init::derive_table_init;
@@ -73,29 +68,34 @@ use table_init::derive_table_init;
 ///     pub a: A,
 /// }
 /// ```
-#[proc_macro_error]
 #[proc_macro_derive(TableInit)]
 pub fn derive_table_init_entry(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    derive_table_init(&input).into()
+    finish(
+        CratePaths::resolve()
+            .and_then(|paths| derive_table_init(&input, &paths)),
+    )
 }
 
 /// Generate `impl Deserialize` for entity structs
-#[proc_macro_error]
 #[proc_macro_derive(Deserialize)]
 pub fn derive_deserialize_entry(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    derive_deserialize(&input).into()
+    finish(derive_deserialize(&input))
 }
 
-fn derive_deserialize(ast: &syn::DeriveInput) -> TokenStream2 {
+fn derive_deserialize(ast: &syn::DeriveInput) -> syn::Result<TokenStream2> {
+    let paths = CratePaths::resolve()?;
     let ident = &ast.ident;
     match &ast.data {
-        syn::Data::Struct(st) => entity::derive_deserialize(ident, st),
-        syn::Data::Enum(e) => select::derive_deserialize(ident, e),
-        syn::Data::Union(_) => {
-            abort_call_site!("only structs and enums are supported")
+        syn::Data::Struct(st) => {
+            struct_codegen::derive_deserialize(ident, st, &paths)
         }
+        syn::Data::Enum(e) => select::derive_deserialize(ident, e),
+        syn::Data::Union(_) => Err(syn::Error::new(
+            ident.span(),
+            "only structs and enums are supported",
+        )),
     }
 }
 
@@ -143,46 +143,39 @@ fn derive_deserialize(ast: &syn::DeriveInput) -> TokenStream2 {
 ///   - Derive `Eq` for the generated `Holder` type when its fields implement
 ///     `Eq`.
 ///   - The macro cannot infer a sibling `#[derive(Eq)]` on the source type.
-#[proc_macro_error]
 #[proc_macro_derive(Holder, attributes(holder))]
 pub fn derive_holder_entry(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    derive_holder(&input).into()
+    finish(derive_holder(&input))
 }
 
-fn derive_holder(ast: &syn::DeriveInput) -> TokenStream2 {
-    let attr = HolderAttr::parse(&ast.attrs);
-    let derive_eq = attr.derive_eq;
+fn derive_holder(ast: &syn::DeriveInput) -> syn::Result<TokenStream2> {
+    let paths = CratePaths::resolve()?;
+    let attr = HolderAttr::parse(&ast.attrs)?;
     let ident = &ast.ident;
     match &ast.data {
-        syn::Data::Struct(st) => match st.fields {
-            syn::Fields::Named(_) => {
-                entity::derive_holder(ident, st, &attr, derive_eq)
-            }
-            syn::Fields::Unnamed(_) => {
-                type_decl::derive_holder(ident, st, &attr, derive_eq)
-            }
-            syn::Fields::Unit => {
-                abort_call_site!("Unit struct is not supported.")
-            }
-        },
-        syn::Data::Enum(e) => select::derive_holder(ident, e, &attr, derive_eq),
-        syn::Data::Union(_) => {
-            abort_call_site!("only structs and enums are supported")
+        syn::Data::Struct(st) => {
+            struct_codegen::derive_holder(ident, st, &attr, &paths)
         }
+        syn::Data::Enum(e) => select::derive_holder(ident, e, &attr, &paths),
+        syn::Data::Union(_) => Err(syn::Error::new(
+            ident.span(),
+            "only structs and enums are supported",
+        )),
     }
 }
 
 /// Get `Holder` struct identifier from `ENTITY` struct identifier
 ///
 /// - e.g. `as_holder!(A)` to `AHolder`
-#[proc_macro_error]
 #[proc_macro]
 pub fn as_holder(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::Type);
-    let path = as_holder_path(&input);
-    let ts = quote! { #path };
-    ts.into()
+    finish(as_holder_path(&input).map(|path| quote! { #path }))
+}
+
+fn finish(result: syn::Result<TokenStream2>) -> TokenStream {
+    result.unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
 #[cfg(test)]
@@ -205,7 +198,7 @@ mod snapshot_tests {
         )
         .unwrap();
 
-        let tt = derive_holder(&input);
+        let tt = derive_holder(&input).unwrap();
         let out = step_p11::codegen::rust::rustfmt(tt.to_string())
             .expect("format derived Rust");
 
@@ -342,7 +335,7 @@ mod snapshot_tests {
         )
         .unwrap();
 
-        let tt = derive_holder(&input);
+        let tt = derive_holder(&input).unwrap();
         let out = step_p11::codegen::rust::rustfmt(tt.to_string())
             .expect("format derived Rust");
 
@@ -499,7 +492,7 @@ mod snapshot_tests {
         )
         .unwrap();
 
-        let tt = derive_holder(&input);
+        let tt = derive_holder(&input).unwrap();
         let out = step_p11::codegen::rust::rustfmt(tt.to_string())
             .expect("format derived Rust");
 
@@ -626,5 +619,67 @@ mod snapshot_tests {
             }
         }
 "#);
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn invalid_holder_inputs_return_compile_errors() {
+        for (input, message) in [
+            (
+                "#[holder(unknown)] struct A { x: f64 }",
+                "invalid #[holder] attribute",
+            ),
+            ("struct A { x: f64 }", "missing holder table attribute"),
+            (
+                "#[holder(table = T)] struct A { x: f64 }",
+                "missing holder field attribute",
+            ),
+            (
+                "#[holder(table = T)] enum A { X { x: f64 } }",
+                "exactly one unnamed field",
+            ),
+            (
+                "#[holder(table = T)] struct A;",
+                "Unit struct is not supported",
+            ),
+            (
+                "#[holder(table = T)] #[holder(field = a)] struct A { #[holder(use_place_holder)] x: &u8 }",
+                "Unsupported Type",
+            ),
+        ] {
+            let ast = syn::parse_str(input).unwrap();
+            let error = derive_holder(&ast).unwrap_err();
+            assert!(error.to_string().contains(message), "{error}");
+            assert!(
+                error
+                    .into_compile_error()
+                    .to_string()
+                    .contains("compile_error")
+            );
+        }
+    }
+
+    #[test]
+    fn unsupported_holder_types_are_not_rewritten_into_other_types() {
+        for input in ["&A", "<A as B>::Item", "Result<A, B>"] {
+            let ty = syn::parse_str(input).unwrap();
+            assert!(as_holder_path(&ty).is_err());
+        }
+    }
+
+    #[test]
+    fn malformed_positional_table_returns_diagnostic() {
+        let input = syn::parse_str("struct T(Vec<u8>);").unwrap();
+        let paths = CratePaths::resolve().unwrap();
+        let error = derive_table_init(&input, &paths).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("tuple TableInit fields must be HashMap")
+        );
     }
 }
