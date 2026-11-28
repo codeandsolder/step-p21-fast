@@ -1,13 +1,11 @@
 //! Common code generation for named ENTITY structs and tuple TYPE declarations.
 
-use proc_macro_error2::abort_call_site;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 
 use crate::{
     common::{
-        as_holder_ident, as_holder_visitor, as_visitor_ident, serde_crate,
-        step_p21_crate,
+        CratePaths, as_holder_ident, as_holder_visitor, as_visitor_ident,
     },
     field_type::FieldType,
     holder_attr::HolderAttr,
@@ -33,12 +31,18 @@ pub fn holder_derive_attrs(derive_eq: bool, is_enum: bool) -> TokenStream2 {
 pub fn impl_entity_table(
     ident: &syn::Ident,
     attr: &HolderAttr,
-) -> TokenStream2 {
-    let HolderAttr { table, field, .. } = attr;
+    paths: &CratePaths,
+) -> syn::Result<TokenStream2> {
+    let table = attr.table.as_ref().ok_or_else(|| {
+        syn::Error::new(ident.span(), "missing holder table attribute")
+    })?;
+    let field = attr.field.as_ref().ok_or_else(|| {
+        syn::Error::new(ident.span(), "missing holder field attribute")
+    })?;
     let holder_ident = as_holder_ident(ident);
-    let step_p21 = step_p21_crate();
+    let step_p21 = &paths.step;
 
-    quote! {
+    Ok(quote! {
         #[automatically_derived]
         impl #step_p21::tables::EntityTable<#holder_ident> for #table {
             fn get_owned(&self, entity_id: u64) -> #step_p21::error::Result<#ident> {
@@ -48,11 +52,14 @@ pub fn impl_entity_table(
                 #step_p21::tables::owned_iter(self, &self.#field)
             }
         }
-    }
+    })
 }
 
-pub fn impl_with_visitor(ident: &syn::Ident) -> TokenStream2 {
-    let step_p21 = step_p21_crate();
+pub fn impl_with_visitor(
+    ident: &syn::Ident,
+    paths: &CratePaths,
+) -> TokenStream2 {
+    let step_p21 = &paths.step;
     let visitor_ident = as_holder_visitor(ident);
     let holder_ident = as_holder_ident(ident);
 
@@ -71,9 +78,10 @@ pub fn impl_deserialize(
     ident: &syn::Ident,
     name: &str,
     field_count: usize,
+    paths: &CratePaths,
 ) -> TokenStream2 {
     let visitor_ident = as_visitor_ident(ident);
-    let serde = serde_crate();
+    let serde = &paths.serde;
     quote! {
         #[automatically_derived]
         impl<'de> #serde::de::Deserialize<'de> for #ident {
@@ -94,11 +102,12 @@ pub fn def_visitor(
     name: &str,
     attributes: &[syn::Ident],
     construct: &TokenStream2,
+    paths: &CratePaths,
 ) -> TokenStream2 {
     let visitor_ident = as_visitor_ident(ident);
     let field_count = attributes.len();
     let indexes = 0..field_count;
-    let serde = serde_crate();
+    let serde = &paths.serde;
 
     quote! {
         #[doc(hidden)]
@@ -153,16 +162,31 @@ pub fn into_owned_value(
     value: &TokenStream2,
     table: &syn::Ident,
 ) -> TokenStream2 {
-    match field_type {
-        FieldType::Path(_) => quote! { #value.into_owned(#table)? },
-        FieldType::Optional(_) => quote! {
-            #value.map(|holder| holder.into_owned(#table)).transpose()?
-        },
-        FieldType::List(_) => quote! {
-            #value.into_iter()
-                .map(|holder| holder.into_owned(#table))
-                .collect::<::std::result::Result<Vec<_>, _>>()?
-        },
-        FieldType::Boxed(_) => abort_call_site!("Unexpected Box<T>"),
+    fn conversion(
+        field_type: &FieldType,
+        value: &TokenStream2,
+        table: &syn::Ident,
+    ) -> TokenStream2 {
+        match field_type {
+            FieldType::Path(_) => quote! { #value.into_owned(#table) },
+            FieldType::Optional(inner) => {
+                let converted = conversion(inner, &quote!(holder), table);
+                quote! { #value.map(|holder| #converted).transpose() }
+            }
+            FieldType::List(inner) => {
+                let converted = conversion(inner, &quote!(holder), table);
+                quote! {
+                    #value.into_iter()
+                        .map(|holder| #converted)
+                        .collect::<::std::result::Result<Vec<_>, _>>()
+                }
+            }
+            FieldType::Boxed(inner) => {
+                let converted = conversion(inner, &quote!((*#value)), table);
+                quote! { #converted.map(Box::new) }
+            }
+        }
     }
+    let converted = conversion(field_type, value, table);
+    quote! { #converted? }
 }

@@ -8,8 +8,6 @@
 //! - `#[holder(generate_deserialize)]`
 //! - `#[holder(eq)]` to derive `Eq` on the generated holder
 
-use proc_macro_error2::abort;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HolderAttr {
     pub table: Option<syn::Path>,
@@ -20,7 +18,7 @@ pub struct HolderAttr {
 }
 
 impl HolderAttr {
-    pub fn parse(attrs: &[syn::Attribute]) -> Self {
+    pub fn parse(attrs: &[syn::Attribute]) -> syn::Result<Self> {
         let mut table = None;
         let mut field = None;
         let mut place_holder = false;
@@ -37,9 +35,12 @@ impl HolderAttr {
                 continue;
             }
 
-            match attr.parse_args().unwrap_or_else(|error: syn::Error| {
-                abort!(error.span(), "invalid #[holder] attribute: {}", error)
-            }) {
+            match attr.parse_args().map_err(|error: syn::Error| {
+                syn::Error::new(
+                    error.span(),
+                    format!("invalid #[holder] attribute: {error}"),
+                )
+            })? {
                 Attr::Table(path) => {
                     table = Some(path);
                 }
@@ -57,13 +58,13 @@ impl HolderAttr {
                 }
             }
         }
-        Self {
+        Ok(Self {
             table,
             field,
             place_holder,
             generate_deserialize,
             derive_eq,
-        }
+        })
     }
 }
 
@@ -145,7 +146,7 @@ mod tests {
         assert!(syn::parse_str::<Attr>("eq = true").is_err());
 
         let attr: syn::Attribute = syn::parse_quote!(#[holder(eq)]);
-        assert!(HolderAttr::parse(&[attr]).derive_eq);
+        assert!(HolderAttr::parse(&[attr]).unwrap().derive_eq);
     }
 
     #[test]

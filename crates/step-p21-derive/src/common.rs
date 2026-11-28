@@ -1,5 +1,4 @@
 use proc_macro_crate::{FoundCrate, crate_name};
-use proc_macro_error2::{ResultExt, abort_call_site};
 use proc_macro2::Span;
 use quote::format_ident;
 
@@ -13,41 +12,45 @@ pub fn as_holder_ident(input: &syn::Ident) -> syn::Ident {
     format_ident!("{}Holder", input)
 }
 
-pub fn as_holder_path(input: &syn::Type) -> syn::Type {
-    let ft: FieldType = input
-        .clone()
-        .try_into()
-        .expect_or_abort("as_holder! only accepts step_p11-generated type");
-    ft.into_holder().into()
+pub fn as_holder_path(input: &syn::Type) -> syn::Result<syn::Type> {
+    let ft = FieldType::try_from(input.clone())?;
+    Ok(ft.into_holder()?.into())
 }
 
 pub fn as_visitor_ident(input: &syn::Ident) -> syn::Ident {
     format_ident!("{}Visitor", input)
 }
 
-pub fn serde_crate() -> syn::Path {
-    let step_p21 = step_p21_crate();
-    syn::parse_quote!( #step_p21::serde )
+/// Paths resolved once per macro invocation, including renamed dependencies.
+pub struct CratePaths {
+    pub step: syn::Path,
+    pub serde: syn::Path,
+    pub itertools: syn::Path,
 }
 
-pub fn itertools_crate() -> syn::Path {
-    let step_p21 = step_p21_crate();
-    syn::parse_quote!( #step_p21::itertools )
-}
-
-/// Resolve the dependency name, including aliases, without guessing the Cargo
-/// target.
-pub fn step_p21_crate() -> syn::Path {
-    match crate_name("step-p21").unwrap_or_else(|error| {
-        abort_call_site!("failed to locate step-p21 crate: {}", error)
-    }) {
-        // Within the package, the library aliases itself as step_p21.
-        // Its other targets already import that library under this name.
-        FoundCrate::Itself => syn::parse_quote!(::step_p21),
-        FoundCrate::Name(name) => {
-            let ident = syn::Ident::new(&name, Span::call_site());
-            syn::parse_quote!(::#ident)
-        }
+impl CratePaths {
+    pub fn resolve() -> syn::Result<Self> {
+        let step: syn::Path = match crate_name("step-p21").map_err(|error| {
+            syn::Error::new(
+                Span::call_site(),
+                format!("failed to locate step-p21 crate: {error}"),
+            )
+        })? {
+            // The library aliases itself as step_p21; its other targets import
+            // it.
+            FoundCrate::Itself => syn::parse_quote!(::step_p21),
+            FoundCrate::Name(name) => {
+                let ident = syn::Ident::new(&name, Span::call_site());
+                syn::parse_quote!(::#ident)
+            }
+        };
+        let serde = syn::parse_quote!(#step::serde);
+        let itertools = syn::parse_quote!(#step::itertools);
+        Ok(Self {
+            step,
+            serde,
+            itertools,
+        })
     }
 }
 
@@ -58,7 +61,7 @@ mod tests {
     #[test]
     fn holder_path() {
         let path = syn::parse_str("::some::Struct").unwrap();
-        let holder = as_holder_path(&path);
+        let holder = as_holder_path(&path).unwrap();
         let ans = syn::parse_str("::some::StructHolder").unwrap();
         assert_eq!(holder, ans);
     }
@@ -66,7 +69,7 @@ mod tests {
     #[test]
     fn optional_holder_path() {
         let path = syn::parse_str("Option<::some::Struct>").unwrap();
-        let holder = as_holder_path(&path);
+        let holder = as_holder_path(&path).unwrap();
         let ans = syn::parse_str("Option<::some::StructHolder>").unwrap();
         assert_eq!(holder, ans);
     }

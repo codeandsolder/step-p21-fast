@@ -1,9 +1,7 @@
 use super::{
-    FieldType, HolderAttr, abort_call_site, as_holder_ident, as_holder_path,
-    as_visitor_ident, itertools_crate, serde_crate, step_p21_crate,
+    CratePaths, FieldType, HolderAttr, as_holder_ident, as_visitor_ident,
 };
 use inflector::Inflector;
-use proc_macro_error2::{OptionExt, ResultExt};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
@@ -23,7 +21,11 @@ struct Input {
 }
 
 impl Input {
-    fn parse(ident: &syn::Ident, e: &syn::DataEnum, attr: &HolderAttr) -> Self {
+    fn parse(
+        ident: &syn::Ident,
+        e: &syn::DataEnum,
+        attr: &HolderAttr,
+    ) -> syn::Result<Self> {
         let name = ident.to_string().to_screaming_snake_case();
         let holder_ident = as_holder_ident(ident);
         let holder_visitor_ident = as_visitor_ident(&holder_ident);
@@ -33,10 +35,9 @@ impl Input {
             .iter()
             .map(|id| id.to_string().to_screaming_snake_case())
             .collect();
-        let table = attr
-            .table
-            .clone()
-            .expect_or_abort("table attribute is lacked");
+        let table = attr.table.clone().ok_or_else(|| {
+            syn::Error::new(ident.span(), "table attribute is lacked")
+        })?;
 
         let mut holder_exprs = Vec::new();
         let mut holder_types = Vec::new();
@@ -44,35 +45,40 @@ impl Input {
         let mut variant_into_exprs = Vec::new();
         let mut place_holders = Vec::new();
         for var in &e.variants {
-            let HolderAttr { place_holder, .. } = HolderAttr::parse(&var.attrs);
+            let HolderAttr { place_holder, .. } =
+                HolderAttr::parse(&var.attrs)?;
             place_holders.push(place_holder);
 
-            if var.fields.len() != 1 {
-                abort_call_site!(
-                    "holder enum variants must contain exactly one field"
-                );
+            if !matches!(&var.fields, syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1)
+            {
+                return Err(syn::Error::new_spanned(
+                    var,
+                    "holder enum variants must contain exactly one unnamed field",
+                ));
             }
             for f in &var.fields {
-                let ty = FieldType::try_from(f.ty.clone())
-                    .expect_or_abort("unsupported enum field type");
+                let ty = FieldType::try_from(f.ty.clone())?;
                 if let FieldType::Boxed(_) = ty {
                     if place_holder {
                         // ENTITY case
-                        holder_types.push(as_holder_path(&f.ty));
+                        holder_types.push(ty.into_holder()?.into());
                         holder_exprs
                             .push(quote! { Box::new(sub.into_owned(table)?) });
                         variant_exprs.push(quote! { Box::new(owned) });
                         variant_into_exprs
                             .push(quote! { Box::new(owned.into()) });
                     } else {
-                        abort_call_site!("Simple type should not be Boxed")
+                        return Err(syn::Error::new_spanned(
+                            &f.ty,
+                            "Simple type should not be Boxed",
+                        ));
                     }
                 } else {
                     variant_exprs.push(quote! { owned });
                     variant_into_exprs.push(quote! { owned.into() });
                     if place_holder {
                         // *Any case
-                        holder_types.push(as_holder_path(&f.ty));
+                        holder_types.push(ty.into_holder()?.into());
                         holder_exprs.push(quote! { sub.into_owned(table)? });
                     } else {
                         // SimpleType case
@@ -83,7 +89,7 @@ impl Input {
             }
         }
 
-        Self {
+        Ok(Self {
             name,
             table,
             ident: ident.clone(),
@@ -96,7 +102,7 @@ impl Input {
             holder_types,
             holder_exprs,
             place_holders,
-        }
+        })
     }
 
     fn def_holder(&self, derive_eq: bool) -> TokenStream2 {
@@ -117,7 +123,7 @@ impl Input {
         } // quote!
     }
 
-    fn impl_holder(&self) -> TokenStream2 {
+    fn impl_holder(&self, paths: &CratePaths) -> TokenStream2 {
         let Self {
             name,
             ident,
@@ -127,7 +133,7 @@ impl Input {
             holder_exprs,
             ..
         } = self;
-        let step_p21 = step_p21_crate();
+        let step_p21 = &paths.step;
 
         quote! {
             impl #step_p21::tables::IntoOwned for #holder_ident {
@@ -150,14 +156,14 @@ impl Input {
         } // quote!
     }
 
-    fn impl_deserialize(&self) -> TokenStream2 {
+    fn impl_deserialize(&self, paths: &CratePaths) -> TokenStream2 {
         let Self {
             name,
             holder_ident,
             holder_visitor_ident,
             ..
         } = self;
-        let serde = serde_crate();
+        let serde = &paths.serde;
         quote! {
             impl<'de> #serde::de::Deserialize<'de> for #holder_ident {
                 fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
@@ -170,7 +176,7 @@ impl Input {
         } // quote!
     }
 
-    fn def_visitor(&self) -> TokenStream2 {
+    fn def_visitor(&self, paths: &CratePaths) -> TokenStream2 {
         let Self {
             holder_ident,
             holder_visitor_ident,
@@ -180,8 +186,8 @@ impl Input {
             variant_exprs,
             ..
         } = self;
-        let step_p21 = step_p21_crate();
-        let serde = serde_crate();
+        let step_p21 = &paths.step;
+        let serde = &paths.serde;
 
         quote! {
             #[doc(hidden)]
@@ -225,7 +231,10 @@ impl Input {
         } // quote!
     }
 
-    fn impl_entity_table(&self) -> TokenStream2 {
+    fn impl_entity_table(
+        &self,
+        paths: &CratePaths,
+    ) -> syn::Result<TokenStream2> {
         let Self {
             ident,
             holder_ident,
@@ -236,8 +245,8 @@ impl Input {
             place_holders,
             ..
         } = self;
-        let step_p21 = step_p21_crate();
-        let itertools = itertools_crate();
+        let step_p21 = &paths.step;
+        let itertools = &paths.itertools;
         let mut vars = Vec::new();
         let mut holders = Vec::<syn::Type>::new();
         let mut exprs = Vec::new();
@@ -250,11 +259,7 @@ impl Input {
             if *place_holder {
                 vars.push(var);
                 exprs.push(expr);
-                if let FieldType::Boxed(path) = holder
-                    .clone()
-                    .try_into()
-                    .expect_or_abort("invalid holder type")
-                {
+                if let FieldType::Boxed(path) = holder.clone().try_into()? {
                     holders.push(path.as_ref().clone().into());
                 } else {
                     holders.push(holder.clone());
@@ -262,7 +267,7 @@ impl Input {
             }
         }
 
-        quote! {
+        Ok(quote! {
             impl #step_p21::tables::EntityTable<#holder_ident> for #table {
                 fn get_owned(&self, entity_id: u64) -> #step_p21::error::Result<#ident> {
                     #(
@@ -281,7 +286,7 @@ impl Input {
                     ])
                 }
             }
-        } // quote!
+        }) // quote!
     }
 }
 
@@ -289,36 +294,37 @@ pub fn derive_holder(
     ident: &syn::Ident,
     e: &syn::DataEnum,
     attr: &HolderAttr,
-    derive_eq: bool,
-) -> TokenStream2 {
-    let input = Input::parse(ident, e, attr);
-    let def_holder_tt = input.def_holder(derive_eq);
-    let impl_holder_tt = input.impl_holder();
+    paths: &CratePaths,
+) -> syn::Result<TokenStream2> {
+    let input = Input::parse(ident, e, attr)?;
+    let def_holder_tt = input.def_holder(attr.derive_eq);
+    let impl_holder_tt = input.impl_holder(paths);
 
     if attr.generate_deserialize {
-        let impl_deserialize_tt = input.impl_deserialize();
-        let def_visitor_tt = input.def_visitor();
-        let impl_entity_table_tt = input.impl_entity_table();
-        quote! {
+        let impl_deserialize_tt = input.impl_deserialize(paths);
+        let def_visitor_tt = input.def_visitor(paths);
+        let impl_entity_table_tt = input.impl_entity_table(paths)?;
+        Ok(quote! {
             #def_holder_tt
             #impl_holder_tt
             #impl_deserialize_tt
             #def_visitor_tt
             #impl_entity_table_tt
-        } // quote!
+        }) // quote!
     } else {
-        quote! {
+        Ok(quote! {
             #def_holder_tt
             #impl_holder_tt
-        } // quote!
+        }) // quote!
     }
 }
 
 pub fn derive_deserialize(
-    _ident: &syn::Ident,
+    ident: &syn::Ident,
     _e: &syn::DataEnum,
-) -> TokenStream2 {
-    abort_call_site!(
-        "standalone Deserialize derive is not supported for selection enums; use #[derive(Holder)] with #[holder(generate_deserialize)]"
-    )
+) -> syn::Result<TokenStream2> {
+    Err(syn::Error::new(
+        ident.span(),
+        "standalone Deserialize derive is not supported for selection enums; use #[derive(Holder)] with #[holder(generate_deserialize)]",
+    ))
 }
